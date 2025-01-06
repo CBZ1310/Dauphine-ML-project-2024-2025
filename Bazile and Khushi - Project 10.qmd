@@ -87,9 +87,6 @@ learn_merged <- learn_df %>%
   left_join(learn_retired_pension, by = "PRIMARY_KEY") %>%
   left_join(learn_sport, by = "PRIMARY_KEY")
 
-# Suppression of the suffix .x and .y
-learn_merged <- learn_merged %>%
-  rename_with(~ str_remove(., "\\.x$|\\.y$"))
 
 ```
 
@@ -127,7 +124,6 @@ test_merged <- test_df %>%
   left_join(test_retired_jobs, by = "PRIMARY_KEY") %>%
   left_join(test_retired_pension, by = "PRIMARY_KEY") %>%
   left_join(test_sport, by = "PRIMARY_KEY")
-
 
 ```
 
@@ -168,22 +164,70 @@ na_sum_table <- bind_rows(learn_na_count, learn_na_percentage, test_na_count, te
 print(na_sum_table)
 ```
 
+In addition to the learning and test dataset, we also used to additional dataset
+
+-   the variable "community_size" of "city_pop", even if the target variable is not describe demographic size of a town has strong correlation with market size, job and available infrastructure;
+
+-   the variable "town_type" of the dataset "city_adm" : our hypothesis key cities like state capital or "préfecture" can benefit from greater investment and infrastucture or at the opposite it is because of their historical attractivity that they add be chosen as "préfecture";
+
+-   and, the variable "dep" of the dataset "city_adm" in order to take into account potential departemental variation.
+
+No missing values were found to report..
+
+```{r Addition_of_demographic_data}
+# Importation of the  dataset
+
+city_adm <- read_csv("Data - source/project-10-files/city_adm.csv", 
+                     col_types = cols(INSEE = col_character())) # the option col_types makes sure that INSEE's code are treated as characters what was not automatically the case this time during importation. 
+
+city_pop <- read_csv("Data - source/project-10-files/city_pop.csv", 
+    col_types = cols(INSEE = col_character()))
+
+
+# Merging
+learn_merged <- learn_merged %>% 
+  left_join(city_adm, by = "INSEE") %>% 
+  left_join(city_pop, by = "INSEE")
+
+test_merged <- test_merged %>% 
+  left_join(city_adm, by = "INSEE") %>% 
+  left_join(city_pop, by = "INSEE")
+
+# Checking NA for new data
+col_demo_data <- colnames(left_join(city_adm, city_pop, by = "INSEE")) #column names of the new data
+
+demo_learn_na_count <- learn_merged %>%
+  select(col_demo_data) %>%  
+  summarise(across(everything(), ~ as.integer(sum(is.na(.))))) %>%
+  mutate(Statistics = "Learning set : count")
+
+
+demo_test_na_count <- test_merged %>%
+  select(col_demo_data) %>%  
+  summarise(across(everything(), ~ as.integer(sum(is.na(.))))) %>%
+  mutate(Statistics = "Test set : count")
+
+
+demo_na_sum_table <- bind_rows(demo_learn_na_count, demo_test_na_count) 
+
+# Removing intermediary columns
+rm(col_demo_data)
+rm(demo_test_na_count)
+rm(demo_learn_na_count)
+```
+
+```{r uncoded_version_of_the_data}
+# Liste tous les fichiers CSV dans le dossier
+data_description <- "Data - source/project-10-files/code"
+
+## Opening all the csv starting with "code"
+fichiers_csv <- list.files(data_description, pattern = "*.csv", full.names = TRUE)
+
+for (fichier in fichiers_csv) {
+  nom_dataframe <- tools::file_path_sans_ext(basename(fichier))  # Utilise le nom du fichier sans extension
+  assign(nom_dataframe, read.csv(fichier))  # Crée une variable avec ce nom et charge le CSV
+}
+
+```
+
 ## Descriptive Statistics
-
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
-
-```{r}
-
-
-
-
-```
-
-You can add options to executable code like this
-
-```{r}
-#| echo: false
-2 * 2
-```
-
-The `echo: false` option disables the printing of code (only output is displayed).

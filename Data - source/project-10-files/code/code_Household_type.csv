@@ -1,0 +1,10 @@
+Code,Libellé
+"TYPEMR|1|1","Homme vivant seul"
+"TYPEMR|1|2","Femme vivant seule"
+"TYPEMR|2|0","Plusieurs personnes sans famille"
+"TYPEMR|3|1","Famille principale monoparentale composée d'un homme avec enfant(s)"
+"TYPEMR|3|2","Famille principale monoparentale composée d'une femme avec enfant(s)"
+"TYPEMR|4|1","Famille principale composée d'un couple de deux 'actifs ayant un emploi'"
+"TYPEMR|4|2","Famille principale composée d'un couple où seul un homme a le statut 'd’actif ayant un emploi'"
+"TYPEMR|4|3","Famille principale composée d'un couple où seule une femme a le statut 'd’actif ayant un emploi'"
+"TYPEMR|4|4","Famille principale composée d'un couple d’aucun 'actif ayant un emploi'"

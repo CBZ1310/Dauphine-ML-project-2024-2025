@@ -1,0 +1,30 @@
+Code,Libellé
+csp_1_0,Agriculteurs (salariés de leur exploitation)
+csp_2_1,Artisans (salariés de leur entreprise)
+csp_2_2,Commerçants et assimilés (salariés de leur entreprise)
+csp_2_3,Chefs d'entreprise de 10 salariés ou plus (salariés de leur entreprise)
+csp_3_1,Professions libérales (exercées sous statut de salarié)
+csp_3_3,Cadres de la fonction publique
+csp_3_4,"Professeurs, professions scientifiques"
+csp_3_5,"Professions de l'information, des arts et des spectacles"
+csp_3_7,Cadres administratifs et commerciaux d'entreprises
+csp_3_8,Ingénieurs et cadres techniques d'entreprises
+csp_4_2,"Professeurs des écoles, instituteurs et professions assimilées"
+csp_4_3,Professions intermédiaires de la santé et du travail social
+csp_4_4,"Clergé, religieux"
+csp_4_5,Professions intermédiaires administratives de la fonction publique
+csp_4_6,Professions intermédiaires administratives et commerciales des entreprises
+csp_4_7,Techniciens (sauf techniciens tertiaires)
+csp_4_8,"Contremaîtres, agents de maîtrise (maîtrise administrative exclue)"
+csp_5_2,Employés civils et agents de service de la fonction publique
+csp_5_3,"Policiers, militaires et agents de surveillance"
+csp_5_4,Employés administratifs d'entreprise
+csp_5_5,Employés de commerce
+csp_5_6,Personnels des services directs aux particuliers
+csp_6_2,Ouvriers qualifiés de type industriel
+csp_6_3,Ouvriers qualifiés de type artisanal
+csp_6_4,Chauffeurs
+csp_6_5,"Ouvriers qualifiés de la manutention, du magasinage et du transport"
+csp_6_7,Ouvriers non qualifiés de type industriel
+csp_6_8,Ouvriers non qualifiés de type artisanal
+csp_6_9,Ouvriers agricoles et assimilés

@@ -1,0 +1,13 @@
+Code,Libellé
+"dip|1","Pas de scolarité ou arrêt avant la fin du primaire"
+"dip|2","Aucun diplôme et scolarité interrompue à la fin du primaire ou avant la fin du collège"
+"dip|3","Aucun diplôme et scolarité jusqu’à la fin du collège ou au-delà"
+"dip|1|1","CEP (certificat d’études primaires)"
+"dip|1|2","BEPC, brevet élémentaire, brevet des collèges, DNB"
+"dip|1|3","CAP, BEP ou diplôme de niveau équivalent"
+"dip|1|4","Baccalauréat général ou technologique, brevet supérieur, capacité en droit, DAEU, ESEU"
+"dip|1|5","Baccalauréat professionnel, brevet professionnel, de technicien ou d’enseignement, diplôme équivalent"
+"dip|1|6","BTS, DUT, Deug, Deust, diplôme de la santé ou du social de niveau bac+2, diplôme équivalent"
+"dip|1|7","Licence, licence pro, maîtrise, diplôme équivalent de niveau bac+3 ou bac+4"
+"dip|1|8","Master, DEA, DESS, diplôme grande école niveau bac+5, doctorat de santé"
+"dip|1|9","Doctorat de recherche (hors santé)"
