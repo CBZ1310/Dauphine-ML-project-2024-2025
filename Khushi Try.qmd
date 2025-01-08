@@ -1,0 +1,131 @@
+---
+title: "Khushi Try"
+format: html
+editor: visual
+---
+
+## Libraries
+
+```{r}
+#| message: false
+#| warning: false
+library(vroom)
+library(here)
+here::i_am("Dauphine-ML-project-2024-2025.Rproj")
+library(dplyr)
+library(ggplot2)
+library(naniar) ##missing values
+library(cowplot) ##for combining graphs
+```
+
+## Data Loading
+
+```{r}
+#| message: false
+#| warning: false
+learn <- vroom(here("Data - source", "project-10-files", "learn_dataset.csv"), delim = ",", show_col_types = FALSE)
+emp_type <- vroom(here("Data - source", "project-10-files", "learn_dataset_emp_type.csv"), delim = ",", show_col_types = FALSE)
+job <- vroom(here("Data - source", "project-10-files", "learn_dataset_job.csv"), delim = ",", show_col_types = FALSE)
+retired_former <- vroom(here("Data - source", "project-10-files", "learn_dataset_retired_former.csv"), delim = ",", show_col_types = FALSE)
+retired_jobs <- vroom(here("Data - source", "project-10-files", "learn_dataset_retired_jobs.csv"), delim = ",", show_col_types = FALSE)
+retired_pension <- vroom(here("Data - source", "project-10-files", "learn_dataset_retired_pension.csv"), delim = ",", show_col_types = FALSE)
+sports <- vroom(here("Data - source", "project-10-files", "learn_dataset_sport.csv"), delim = ",", show_col_types = FALSE)
+```
+
+### Stratify or Not?
+
+```{r}
+target_counts <- table(learn$target)
+target_proportions <- prop.table(target_counts)
+target_df <- as.data.frame(target_proportions)
+colnames(target_df) <- c("Target", "Proportion")
+
+
+ggplot(target_df, aes(x = Target, y = Proportion, fill = Target)) +
+  geom_bar(stat = "identity") +
+  scale_y_continuous(labels = scales::percent) +
+  labs(
+    title = "Proportion of Each Target Value",
+    x = "Target Value",
+    y = "Proportion"
+  ) +
+  theme_minimal()
+```
+
+**Because the response variable is a bit imbalanced, we will use stratify sampling. But it is not that serious so we don't need up-sampling or down-sampling**
+
+## Looking into data sets
+
+### missing values
+
+```{r}
+p1 <- gg_miss_var(emp_type)
+p2 <- gg_miss_var(job)
+p3 <- gg_miss_var(retired_former)
+p4 <- gg_miss_var(retired_jobs)
+p5 <- gg_miss_var(retired_pension)
+p6 <- gg_miss_var(sports)
+
+missing_values_plot <- plot_grid(p2, p4, ncol = 2, labels = c('job', 'retired_jobs'), label_size = 12)
+
+
+missing_values_plot
+```
+
+**I looked at each plot and above are the two data sets with missing values**
+
+### employment type
+
+```{r}
+emp_counts <- table(emp_type$emp_type)
+emp_proportions <- prop.table(emp_counts)
+emp_df <- as.data.frame(emp_proportions)
+colnames(emp_df) <- c("emp", "Proportion")
+
+
+ggplot(emp_df, aes(x = emp, y = Proportion, fill = emp)) +
+  geom_bar(stat = "identity") +
+  scale_y_continuous(labels = scales::percent) +
+  labs(
+    title = "Maximum - Emplois sans limite de durée, CDI, titulaire de la fonction publique",
+    x = "Emp Type",
+    y = "Proportion"
+  ) +
+  theme_minimal()
+```
+
+## Combining Learn Data
+
+```{r}
+learn <- learn %>%
+  left_join(emp_type, by = "PRIMARY_KEY") |>
+  left_join(job, by = "PRIMARY_KEY") |>
+  left_join(retired_former, by = "PRIMARY_KEY") |>
+  left_join(retired_jobs, by = "PRIMARY_KEY") |>
+  left_join(retired_pension, by = "PRIMARY_KEY") |>
+  left_join(sports, by = "PRIMARY_KEY")
+```
+
+## Load Test Data
+
+```{r}
+test <- vroom(here("Data - source", "project-10-files", "test_dataset.csv"), delim = ",", show_col_types = FALSE)
+test_emp_type <- vroom(here("Data - source", "project-10-files", "test_dataset_emp_type.csv"), delim = ",", show_col_types = FALSE)
+test_job <- vroom(here("Data - source", "project-10-files", "test_dataset_job.csv"), delim = ",", show_col_types = FALSE)
+test_retired_former <- vroom(here("Data - source", "project-10-files", "test_dataset_retired_former.csv"), delim = ",", show_col_types = FALSE)
+test_retired_jobs <- vroom(here("Data - source", "project-10-files", "test_dataset_retired_jobs.csv"), delim = ",", show_col_types = FALSE)
+test_retired_pension <- vroom(here("Data - source", "project-10-files", "test_dataset_retired_pension.csv"), delim = ",", show_col_types = FALSE)
+test_sports <- vroom(here("Data - source", "project-10-files", "test_dataset_sport.csv"), delim = ",", show_col_types = FALSE)
+```
+
+## Combine Test Data
+
+```{r}
+test <- test %>%
+  left_join(test_emp_type, by = "PRIMARY_KEY") |>
+  left_join(test_job, by = "PRIMARY_KEY") |>
+  left_join(test_retired_former, by = "PRIMARY_KEY") |>
+  left_join(test_retired_jobs, by = "PRIMARY_KEY") |>
+  left_join(test_retired_pension, by = "PRIMARY_KEY") |>
+  left_join(test_sports, by = "PRIMARY_KEY")
+```
