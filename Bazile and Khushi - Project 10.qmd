@@ -227,7 +227,7 @@ for (fichier in fichiers_csv) {
   nom_dataframe <- tools::file_path_sans_ext(basename(fichier))  # Utilise le nom du fichier sans extension
   assign(nom_dataframe, read.csv(fichier))  # Crée une variable avec ce nom et charge le CSV
 }
-
+ 
 ```
 
 ## Descriptive Statistics
