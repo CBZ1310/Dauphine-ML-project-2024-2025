@@ -224,18 +224,77 @@ rm(demo_test_na_count)
 rm(demo_learn_na_count)
 ```
 
-```{r uncoded_version_of_the_data}
-# Liste tous les fichiers CSV dans le dossier
-data_description <- "Data - source/project-10-files/code"
+# N/A
 
-## Opening all the csv starting with "code"
-fichiers_csv <- list.files(data_description, pattern = "*.csv", full.names = TRUE)
+```{r Addition_of_the_translation_of_the_code, results = "hide"}
 
-for (fichier in fichiers_csv) {
-  nom_dataframe <- tools::file_path_sans_ext(basename(fichier))  # Utilise le nom du fichier sans extension
-  assign(nom_dataframe, read.csv(fichier))  # Crée une variable avec ce nom et charge le CSV
-}
- 
+################################       Code Act       ###############################
+#Import
+code_act <- read_csv("Data - source/project-10-files/code/code_act.csv")
+
+#Merging
+learn_merged_uncoded <- merge(learn_merged, code_act, by.x = "act", by.y = "Code", all.x = TRUE, all.y = FALSE)
+sum(is.na(learn_merged_uncoded$Libellé)) #no missing values
+
+# Translation of the "Libellé"
+learn_merged_uncoded <- learn_merged_uncoded %>%
+  mutate(act_translated = case_when(
+    grepl("Actifs", Libellé) ~ "Active workers, including apprenticeships or paid internships.",
+    grepl("Chômeurs", Libellé) ~ "Unemployed",
+    grepl("Retraités|prérétaités", Libellé) ~ "Retirees or early retirees",
+    grepl("Élèves|étudiants|stagiaires", Libellé) ~ "Students, unpaid trainees aged 14 or older",
+    grepl("Moins de 14 ans", Libellé) ~ "Under 14 years old",
+    grepl("Femmes|hommes au foyer", Libellé) ~ "Homemakers",
+    grepl("Autres inactifs", Libellé) ~ "Other inactive people",
+    TRUE ~ Libellé  # Default: keep original if no match
+  ))
+
+
+
+# Display the comparison of unique French values with their translations to check if there is any mistakes
+comparison_table <- learn_merged_uncoded %>%
+  select(Libellé, act_translated) %>%
+  distinct()
+
+# Suprresion of unuseful data
+learn_merged_uncoded <- learn_merged_uncoded %>%
+  select(-Libellé)
+rm(code_act)
+
+################################ Code Household type ###############################
+# Import
+code_Household_type <- read_csv("Data - source/project-10-files/code/code_Household_type.csv")
+
+#Merging
+learn_merged_uncoded <- merge(learn_merged_uncoded, code_Household_type, by.x = "Household_type", by.y = "Code", all.x = TRUE, all.y = FALSE)
+sum(is.na(learn_merged_uncoded$Libellé)) #no missing values
+
+# Translation
+learn_merged_uncoded <- learn_merged_uncoded %>%
+  mutate(Household_type_translated = case_when(
+    grepl("Homme vivant seul", Libellé) ~ "Man living alone",
+    grepl("Femme vivant seule", Libellé) ~ "Woman living alone",
+    grepl("Plusieurs personnes sans famille", Libellé) ~ "Multiple people without family",
+    grepl("Famille principale monoparentale composée d'un homme", Libellé) ~ "Single-parent family led by a man",
+    grepl("Famille principale monoparentale composée d'une femme", Libellé) ~ "Single-parent family led by a woman",
+    grepl("Famille principale composée d'un couple de deux 'actifs", Libellé) ~ "Main family composed of a couple of two active workers",
+    grepl("Famille principale composée d'un couple où seul un homme", Libellé) ~ "Main family composed of a couple where only the man is active",
+    grepl("Famille principale composée d'un couple où seule une femme", Libellé) ~ "Main family composed of a couple where only the woman is active",
+    grepl("Famille principale composée d'un couple d'aucun 'actif", Libellé) ~ "Main family composed of a couple with no active workers",
+    TRUE ~ Libellé  # Default: keep original if no match
+  ))
+
+comparison_table <- learn_merged_uncoded %>%
+  select(Libellé, Household_type_translated) %>%
+  distinct()
+
+# Suprresion of unuseful data
+learn_merged_uncoded <- learn_merged_uncoded %>%
+  select(-Libellé)
+rm(code_Household_type)
+```
+
+```{}
 ```
 
 ## Descriptive Statistics
