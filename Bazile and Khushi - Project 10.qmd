@@ -227,13 +227,31 @@ rm(demo_learn_na_count)
 # N/A
 
 ```{r Addition_of_the_translation_of_the_code, results = "hide"}
+################################     Town type       ###############################
 
-################################       Code Act       ###############################
+#Translation
+learn_merged_uncoded <- learn_merged %>%
+  mutate(town_type_translated = case_when(
+    grepl("Commune simple", town_type) ~ "Simple municipality",
+    grepl("Chef-lieu canton", town_type) ~ "Canton capital",
+    grepl("Préfecture de région", town_type) ~ "Regional prefecture",
+    grepl("Préfecture", town_type) ~ "Prefecture",
+    grepl("Sous-préfecture", town_type) ~ "Sub-prefecture",
+    grepl("Capitale d'état", town_type) ~ "State capital",
+    TRUE ~ town_type  # Conserve la valeur d'origine si non traduite
+  ))
+
+# Display the comparison of unique French values with their translations to check if there are any mistakes
+comparison_table <- learn_merged_uncoded %>%
+  select(town_type, town_type_translated) %>%
+  distinct()
+
+################################     Code Act       ################################
 #Import
 code_act <- read_csv("Data - source/project-10-files/code/code_act.csv")
 
 #Merging
-learn_merged_uncoded <- merge(learn_merged, code_act, by.x = "act", by.y = "Code", all.x = TRUE, all.y = FALSE)
+learn_merged_uncoded <- merge(learn_merged_uncoded, code_act, by.x = "act", by.y = "Code", all.x = TRUE, all.y = FALSE)
 sum(is.na(learn_merged_uncoded$Libellé)) #no missing values
 
 # Translation of the "Libellé"
@@ -292,9 +310,136 @@ comparison_table <- learn_merged_uncoded %>%
 learn_merged_uncoded <- learn_merged_uncoded %>%
   select(-Libellé)
 rm(code_Household_type)
+
+################################ Code Highest Degree ###############################
+# Import
+code_Highest_degree <- read_csv("Data - source/project-10-files/code/code_Highest_degree.csv")
+
+# Merging
+learn_merged_uncoded <- merge(learn_merged_uncoded, code_Highest_degree, by.x = "Highest_degree", by.y = "Code", all.x = TRUE, all.y = FALSE)
+sum(is.na(learn_merged_uncoded$Libellé)) # Check for missing values
+
+# Translation of "Highest_degree"
+learn_merged_uncoded <- learn_merged_uncoded %>%
+  mutate(Highest_degree_translated = case_when(
+    grepl("Pas de scolarité ou arrêt avant la fin du primaire", Libellé) ~ "No schooling or dropout at the end of primary school",
+    grepl("CEP", Libellé) ~ "Primary school certificate",
+    grepl("BEPC, brevet élémentaire, brevet des collèges", Libellé) ~ "Middle school diploma or equivalent",
+    grepl("CAP, BEP ou diplôme de niveau équivalent", Libellé) ~ "Vocational diploma (CAP/BEP or equivalent)",
+    grepl("Baccalauréat général ou technologique", Libellé) ~ "General or technological high school diploma",
+    grepl("Baccalauréat professionnel", Libellé) ~ "Professional high school diploma",
+    grepl("BTS, DUT, Deug", Libellé) ~ "University technical diploma or associate degree",
+    grepl("Licence|licence pro|maîtrise", Libellé) ~ "Bachelor's degree or equivalent",
+    grepl("Master|DEA|DESS", Libellé) ~ "Master's degree or equivalent",
+    grepl("Doctorat", Libellé) ~ "Doctorate or equivalent",
+     grepl("Aucun diplôme et scolarité interrompue à la fin du primaire", Libellé) ~ "No degree, interrupted schooling at the end of primary school or before the end of middle-school",
+    grepl("au-delà", Libellé) ~ "No degree, completed schooling up to middle school or beyond",
+    TRUE ~ Libellé  # Default: keep the original if no match
+  ))
+
+
+# Display the comparison of unique French values with their translations to check if there are any mistakes
+comparison_table <- learn_merged_uncoded %>%
+  select(Libellé, Highest_degree_translated) %>%
+  distinct()
+
+# Suppression of unuseful data
+learn_merged_uncoded <- learn_merged_uncoded %>%
+  select(-Libellé)
+rm(code_Highest_degree)
+
+################################ Code JOB 42 ###############################
+# Import
+code_JOB_42 <- read_csv("Data - source/project-10-files/code/code_JOB_42.csv")
+
+# Merging
+learn_merged_uncoded <- merge(learn_merged_uncoded, code_JOB_42, by.x = "JOB_42", by.y = "Code", all.x = TRUE, all.y = FALSE)
+sum(is.na(learn_merged_uncoded$Libellé)) # Check for missing values
+
+# Translation
+learn_merged_uncoded <- learn_merged_uncoded %>%
+  mutate(JOB_42_translated = case_when(
+    grepl("Agriculteurs sur petite exploitation", Libellé) ~ "Small-scale farmers",
+    grepl("Agriculteurs sur moyenne exploitation", Libellé) ~ "Medium-scale farmers",
+    grepl("Agriculteurs sur grande exploitation", Libellé) ~ "Large-scale farmers",
+    grepl("Artisans", Libellé) ~ "Craftsmen",
+    grepl("Commerçants et assimilés", Libellé) ~ "Merchants and related trades",
+    grepl("Chefs d'entreprise de 10 salariés ou plus", Libellé) ~ "Business owners with 10 or more employees",
+    grepl("Professions libérales", Libellé) ~ "Freelancers or independent professionals",
+    grepl("Cadres de la fonction publique", Libellé) ~ "Public sector executives",
+    grepl("Professeurs, professions scientifiques", Libellé) ~ "Teachers and scientific professionals",
+    grepl("Professions de l'information, des arts et des spectacles", Libellé) ~ "Information, arts, and entertainment professionals",
+    grepl("Clergé, religieux", Libellé) ~ "Clergy and religious professionals",
+    grepl("Cadres administratifs et commerciaux d'entreprise", Libellé) ~ "Corporate administrative and commercial executives",
+    grepl("Ingénieurs et cadres techniques d'entreprise", Libellé) ~ "Engineers and technical managers",
+    grepl("Techniciens", Libellé) ~ "Technicians",
+    grepl("Contremaîtres, agents de maîtrise", Libellé) ~ "Foremen and supervisors",
+    grepl("Employés civils et agents de service de la fonction publique", Libellé) ~ "Public sector employees and service agents",
+    grepl("Policiers et militaires", Libellé) ~ "Police and military personnel",
+    grepl("Employés administratifs d'entreprise", Libellé) ~ "Corporate administrative employees",
+    grepl("Employés de commerce", Libellé) ~ "Retail employees",
+    grepl("Personnels des services directs aux particuliers", Libellé) ~ "Personal service workers",
+    grepl("Ouvriers qualifiés de type industriel", Libellé) ~ "Skilled industrial workers",
+    grepl("Ouvriers qualifiés de type artisanal", Libellé) ~ "Skilled artisanal workers",
+    grepl("Ouvriers qualifiés de la manutention, du magasinage et du transport", Libellé) ~ "Skilled manual and transport workers",
+    grepl("Ouvriers non qualifiés de type industriel", Libellé) ~ "Unskilled industrial workers",
+    grepl("Ouvriers non qualifiés de type artisanal", Libellé) ~ "Unskilled artisanal workers",
+    grepl("Ouvriers agricoles", Libellé) ~ "Agricultural workers",
+    grepl("Chauffeurs", Libellé) ~ "Drivers",
+    grepl("Anciens agriculteurs exploitants", Libellé) ~ "Retired farmers",
+    grepl("Anciens artisans, commerçants, chefs d'entreprise", Libellé) ~ "Retired craftsmen, merchants, and business owners",
+    grepl("Anciens cadres", Libellé) ~ "Retired executives",
+    grepl("Anciens employés", Libellé) ~ "Retired employees",
+    grepl("Anciens ouvriers", Libellé) ~ "Retired workers",
+    grepl("Chômeurs n'ayant jamais travaillé", Libellé) ~ "Unemployed who have never worked",
+    grepl("tudiant", Libellé) ~ "Students",
+    grepl("de moins de 60 ans", Libellé) ~ "People without professional activity under 60 (excluded Retired ppl)",
+    grepl("Personnes diverses sans activité professionnelle de 60 ans et plus", Libellé) ~ "People without professional activity 60 and older (excluded Retired ppl)",
+    grepl("Professeurs des écoles, instituteurs et assimilés", Libellé) ~ "Primary school teachers, instructors, and related professions",
+  grepl("Professions intermédiaires de la santé et du travail social", Libellé) ~ "Intermediate health and social work professions",
+  grepl("Clergé religieux", Libellé) ~ "Clergy and religious professionals",
+  grepl("Professions intermédiaires administratives de la fonction publique", Libellé) ~ "Intermediate administrative professions in public administration",
+  grepl("Professions intermédiaires administratives et commerciales des entreprises", Libellé) ~ "Intermediate administrative and commercial professions in companies",
+  grepl("Anciennes professions intermédiaires", Libellé) ~ "Former intermediate professions",
+  grepl("du travail social", Libellé) ~ "Intermediate health and social work professionals",
+    TRUE ~ Libellé  # Default: keep original if no match
+  ))
+
+
+
+# Display the comparison of unique French values with their translations to check if there are any mistakes
+comparison_table <- learn_merged_uncoded %>%
+  select(Libellé, JOB_42_translated) %>%
+  distinct()
+
+# Suppression of unuseful data
+learn_merged_uncoded <- learn_merged_uncoded %>%
+  select(-Libellé)
+rm(code_JOB_42)
 ```
 
-```{}
+```{r}
+
+
+```
+
+```{r}
+
+
+
+
+```
+
+```{r}
+# Suppression of unuseful data
+learn_merged_uncoded <- learn_merged_uncoded %>%
+  select(-Libellé)
+rm(code_JOB_42)
+
+missing_translations <- learn_merged_uncoded %>%
+  filter(JOB_42_translated == Libellé)
+print(missing_translations)
+
 ```
 
 ## Descriptive Statistics
