@@ -16,6 +16,7 @@ library(dplyr)
 library(tidyr)
 library(data.table)
 library(stringr)
+library(knitr)
 
 
 ## Graphics libraries
@@ -750,4 +751,202 @@ write_csv(learn_merged_uncoded_clean, "created csvs/learn_merged_uncoded_clean.c
 
 ```
 
-## Descriptive Statistics
+### Understanding the NA
+
+The table below describe the percentage of missing value by variable in the learning set. The value of the main dataset has a 100% completion rate.
+
+```{r}
+na_percentage_per_column <- learn_merged %>%
+  summarise(across(everything(), ~ sum(is.na(.)) / n() * 100)) %>%
+  pivot_longer(everything(), names_to = "column_name", values_to = "na_percentage") %>%
+  arrange((na_percentage))
+na_percentage_per_column
+```
+
+Our first question was to understand whether they are pattern in the messing values. Among several way to deal with missing values Kumar G.R. (2024) quote the use of "Domain-specific knowledge". Similarly, we look at natural relationship between missing values and variable in the main dataset.
+
+The table below count the number of missing values in variables linked to employment by activity status. Several missing cells seem logical corresponding to status where people does not work (housewives, retirees, unemployed and inactive people. "EMP_TYPE" have for exampel no missing values for active workers but missing values for other active status.
+
+```{r}
+
+na_count_by_act <- learn_merged_uncoded %>%
+  group_by(act_translated) %>%
+  summarise(
+    Remuneration = sum(is.na(remuneration)),
+    ECO_SECT = sum(is.na(ECO_SECT)),
+    Emp_type = sum(is.na(emp_type)),
+    Job_category = sum(is.na(job_category)),
+    Job_dep = sum(is.na(Job_dep)),
+    Employee_count = sum(is.na(employee_count)),
+    Company_category = sum(is.na(company_category)),
+    Work_condition = sum(is.na(Work_condition)),
+    Working_hours = sum(is.na(Working_hours)),
+    TYPE_CONTRACT = sum(is.na(TYPE_CONTRACT))
+  ) %>%
+  arrange(desc(Remuneration))  
+
+kable(na_count_by_act, caption = "Number of Missing Values by Activity Status")
+
+na_count_by_act
+
+
+```
+
+The problem however is that a quarter of missing values in several column correspond to active workers.
+
+```{r}
+# All NA per category
+total_na_per_column <- learn_merged_uncoded %>%
+  summarise(
+    Total_Remuneration = sum(is.na(remuneration)),
+    Total_ECO_SECT = sum(is.na(ECO_SECT)),
+    Total_Emp_type = sum(is.na(emp_type)),
+    Total_Job_category = sum(is.na(job_category)),
+    Total_Job_dep = sum(is.na(Job_dep)),
+    Total_Employee_count = sum(is.na(employee_count)),
+    Total_Company_category = sum(is.na(company_category)),
+    Total_Work_condition = sum(is.na(Work_condition)),
+    Total_Working_hours = sum(is.na(Working_hours)),
+    Total_TYPE_CONTRACT = sum(is.na(TYPE_CONTRACT))
+  )
+
+# Data in percent
+na_percentage_by_act <- learn_merged_uncoded %>%
+  group_by(act_translated) %>%
+  summarise(
+    Remuneration = round(sum(is.na(remuneration)) / total_na_per_column$Total_Remuneration * 100, 0),
+    ECO_SECT = round(sum(is.na(ECO_SECT)) / total_na_per_column$Total_ECO_SECT * 100, 0),
+    Emp_type = round(sum(is.na(emp_type)) / total_na_per_column$Total_Emp_type * 100, 0),
+    Job_category = round(sum(is.na(job_category)) / total_na_per_column$Total_Job_category * 100, 0),
+    Job_dep = round(sum(is.na(Job_dep)) / total_na_per_column$Total_Job_dep * 100, 0),
+    Employee_count = round(sum(is.na(employee_count)) / total_na_per_column$Total_Employee_count * 100, 0),
+    Company_category = round(sum(is.na(company_category)) / total_na_per_column$Total_Company_category * 100, 0),
+    Work_condition = round(sum(is.na(Work_condition)) / total_na_per_column$Total_Work_condition * 100, 0),
+    Working_hours = round(sum(is.na(Working_hours)) / total_na_per_column$Total_Working_hours * 100, 0),
+    TYPE_CONTRACT = round(sum(is.na(TYPE_CONTRACT)) / total_na_per_column$Total_TYPE_CONTRACT * 100, 0)
+  ) %>%
+  arrange(desc(Remuneration))  # Trié par le pourcentage de NA pour "Remuneration"
+
+
+kable(na_percentage_by_act, caption = "Percentage of Missing Values by Activity Status")
+
+```
+
+More precisely, as we can see below, in average 20% of the employment data for Active workers are missing in several variables.
+
+```{r}
+# Keep only line corresponding to active worker."
+active_workers_data <- learn_merged_uncoded %>%
+  filter(act == "ACT1.1")
+
+# Calcul du pourcentage de valeurs manquantes et non manquantes pour chaque variable
+active_workers_na_percentage <- active_workers_data %>%
+  summarise(
+    Remuneration_sep_missing = round(sum(is.na(remuneration)) / n() * 100, 0),
+    Remuneration_sep_not_missing = round(sum(!is.na(remuneration)) / n() * 100, 0),
+    ECO_SECT_sep_missing = round(sum(is.na(ECO_SECT)) / n() * 100, 0),
+    ECO_SECT_sep_not_missing = round(sum(!is.na(ECO_SECT)) / n() * 100, 0),
+    Emp_type_sep_missing = round(sum(is.na(emp_type)) / n() * 100, 0),
+    Emp_type_sep_not_missing = round(sum(!is.na(emp_type)) / n() * 100, 0),
+    Job_category_sep_missing = round(sum(is.na(job_category)) / n() * 100, 0),
+    Job_category_sep_not_missing = round(sum(!is.na(job_category)) / n() * 100, 0),
+    Job_dep_sep_missing = round(sum(is.na(Job_dep)) / n() * 100, 0),
+    Job_dep_sep_not_missing = round(sum(!is.na(Job_dep)) / n() * 100, 0),
+    Employee_count_sep_missing = round(sum(is.na(employee_count)) / n() * 100, 0),
+    Employee_count_sep_not_missing = round(sum(!is.na(employee_count)) / n() * 100, 0),
+    Company_category_sep_missing = round(sum(is.na(company_category)) / n() * 100, 0),
+    Company_category_sep_not_missing = round(sum(!is.na(company_category)) / n() * 100, 0),
+    Work_condition_sep_missing = round(sum(is.na(Work_condition)) / n() * 100, 0),
+    Work_condition_sep_not_missing = round(sum(!is.na(Work_condition)) / n() * 100, 0),
+    Working_hours_sep_missing = round(sum(is.na(Working_hours)) / n() * 100, 0),
+    Working_hours_sep_not_missing = round(sum(!is.na(Working_hours)) / n() * 100, 0),
+    TYPE_CONTRACT_sep_missing = round(sum(is.na(TYPE_CONTRACT)) / n() * 100, 0),
+    TYPE_CONTRACT_sep_not_missing = round(sum(!is.na(TYPE_CONTRACT)) / n() * 100, 0)
+  )
+
+# Transposing
+active_workers_na_percentage <- active_workers_na_percentage %>%
+  pivot_longer(
+    everything(),
+    names_to = c("Variable", "Status"),
+    names_sep = "_sep_"
+  ) %>%
+  pivot_wider(
+    names_from = "Status",
+    values_from = "value"
+  )%>%
+  rename(
+    `Missing values` = missing,
+    `Non-missing value` = not_missing
+  )
+
+
+kable(active_workers_na_percentage, caption = "Percentage of missing Values for active workers")
+
+
+```
+
+We try to go further in the analysis by identifying if using the variable "JOB_42" we found some logical pattern.
+
+```{r}
+#Reminder  acvite_worker_data is computed through active_workers_data learn_merged_uncoded %>% filter(act == "ACT1.1")
+
+
+aw_na_by_job_percent <- active_workers_data %>%
+  group_by(JOB_42_translated) %>%
+  summarise(
+    Remuneration = round(sum(is.na(remuneration)) / n() * 100, 0),
+    ECO_SECT = round(sum(is.na(ECO_SECT)) / n() * 100, 0),
+    Job_category = round(sum(is.na(job_category)) / n() * 100, 0),
+    Job_dep = round(sum(is.na(Job_dep)) / n() * 100, 0),
+    Employee_count = round(sum(is.na(employee_count)) / n() * 100, 0),
+    Company_category = round(sum(is.na(company_category)) / n() * 100, 0),
+    Work_condition = round(sum(is.na(Work_condition)) / n() * 100, 0),
+    Working_hours = round(sum(is.na(Working_hours)) / n() * 100, 0),
+    TYPE_CONTRACT = round(sum(is.na(TYPE_CONTRACT)) / n() * 100, 0)
+  ) %>% 
+  arrange(desc(Remuneration))
+
+kable(aw_na_by_job_percent, caption = "Percentage of Missing Values by Job 42 Translated for ACT1.1")
+```
+
+```{r}
+aw_na_by_job_n <- active_workers_data %>%
+  group_by(JOB_42_translated) %>%
+  summarise(
+    Remuneration = round(sum(is.na(remuneration)), 0),
+    ECO_SECT = round(sum(is.na(ECO_SECT)), 0),
+    Emp_type = round(sum(is.na(emp_type)), 0),
+    Job_category = round(sum(is.na(job_category)), 0),
+    Job_dep = round(sum(is.na(Job_dep)), 0),
+    Employee_count = round(sum(is.na(employee_count)), 0),
+    Company_category = round(sum(is.na(company_category)), 0),
+    Work_condition = round(sum(is.na(Work_condition)), 0),
+    Working_hours = round(sum(is.na(Working_hours)), 0),
+    TYPE_CONTRACT = round(sum(is.na(TYPE_CONTRACT)), 0)
+  )
+aw_na_by_job_n
+
+kable(aw_na_by_job_n, caption = "Number of Missing Values by Job 42 Translated for ACT1.1")
+```
+
+```{r}
+
+```
+
+```{r}
+active_workers_data %>%
+  group_by(JOB_42_translated) %>%
+  summarise(
+    Remuneration = round(sum(is.na(remuneration)) / n() * 100, 0),
+    ECO_SECT = round(sum(is.na(ECO_SECT)) / n() * 100, 0),
+    Job_category = round(sum(is.na(job_category)) / n() * 100, 0),
+    Job_dep = round(sum(is.na(Job_dep)) / n() * 100, 0),
+    Employee_count = round(sum(is.na(employee_count)) / n() * 100, 0),
+    Company_category = round(sum(is.na(company_category)) / n() * 100, 0),
+    Work_condition = round(sum(is.na(Work_condition)) / n() * 100, 0),
+    Working_hours = round(sum(is.na(Working_hours)) / n() * 100, 0),
+    TYPE_CONTRACT = round(sum(is.na(TYPE_CONTRACT)) / n() * 100, 0)
+  ) %>% 
+  arrange(desc(Remuneration))
+```
