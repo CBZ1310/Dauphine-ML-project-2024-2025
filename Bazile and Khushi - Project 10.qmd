@@ -741,9 +741,6 @@ columns_to_drop <- c(
 learn_merged_uncoded_clean <- learn_merged_uncoded %>%
   select(-all_of(columns_to_drop))
 
-################################    Export en csv     ###############################
-write_csv(learn_merged_uncoded, "created csvs/learn_merged_uncoded.csv")
-write_csv(learn_merged_uncoded_clean, "created csvs/learn_merged_uncoded_clean.csv")
 
 ```
 
@@ -753,7 +750,7 @@ write_csv(learn_merged_uncoded_clean, "created csvs/learn_merged_uncoded_clean.c
 
 ### Understanding the NA
 
-The table below describe the percentage of missing value by variable in the learning set. The value of the main dataset has a 100% completion rate.
+The table below describe the percentage of missing value by variable in the learning set. The value of the main dataset has a 100% completion rate as we saw earmoer/
 
 ```{r}
 na_percentage_per_column <- learn_merged %>%
@@ -763,9 +760,13 @@ na_percentage_per_column <- learn_merged %>%
 na_percentage_per_column
 ```
 
+#### Missing values regarding employment variables
+
+##### Analysis by activity status
+
 Our first question was to understand whether they are pattern in the messing values. Among several way to deal with missing values Kumar G.R. (2024) quote the use of "Domain-specific knowledge". Similarly, we look at natural relationship between missing values and variable in the main dataset.
 
-The table below count the number of missing values in variables linked to employment by activity status. Several missing cells seem logical corresponding to status where people does not work (housewives, retirees, unemployed and inactive people. "EMP_TYPE" have for exampel no missing values for active workers but missing values for other active status.
+The table below count the number of missing values in variables linked to employment by activity status. Several missing cells seem logical corresponding to status where people does not work (housewives, retirees, unemployed and inactive people. "EMP_TYPE" have for example no missing values for active workers but missing values for other active status.
 
 ```{r}
 
@@ -787,7 +788,6 @@ na_count_by_act <- learn_merged_uncoded %>%
 
 kable(na_count_by_act, caption = "Number of Missing Values by Activity Status")
 
-na_count_by_act
 
 
 ```
@@ -825,14 +825,16 @@ na_percentage_by_act <- learn_merged_uncoded %>%
     Working_hours = round(sum(is.na(Working_hours)) / total_na_per_column$Total_Working_hours * 100, 0),
     TYPE_CONTRACT = round(sum(is.na(TYPE_CONTRACT)) / total_na_per_column$Total_TYPE_CONTRACT * 100, 0)
   ) %>%
-  arrange(desc(Remuneration))  # Trié par le pourcentage de NA pour "Remuneration"
+  arrange(desc(Remuneration))
 
 
-kable(na_percentage_by_act, caption = "Percentage of Missing Values by Activity Status")
+kable(na_percentage_by_act, caption = "Percentage of Missing Values by Activity Status (Percentage relatively to the column)")
 
 ```
 
-More precisely, as we can see below, in average 20% of the employment data for Active workers are missing in several variables.
+##### Zoom on active workers
+
+To be more precise, as we can see below, in average 20% of the employment data for Active workers are missing in several variables.
 
 ```{r}
 # Keep only line corresponding to active worker."
@@ -886,7 +888,33 @@ kable(active_workers_na_percentage, caption = "Percentage of missing Values for 
 
 ```
 
-We try to go further in the analysis by identifying if using the variable "JOB_42" we found some logical pattern.
+###### Data by employment type
+
+```{r}
+#Reminder  acvite_worker_data is computed through active_workers_data learn_merged_uncoded %>% filter(act == "ACT1.1")
+
+
+aw_na_by_emptype_percent <- active_workers_data %>%
+  group_by(emp_type_translated) %>%
+  summarise(
+    Remuneration = round(sum(is.na(remuneration)) / n() * 100, 0),
+    ECO_SECT = round(sum(is.na(ECO_SECT)) / n() * 100, 0),
+    Job_category = round(sum(is.na(job_category)) / n() * 100, 0),
+    Job_dep = round(sum(is.na(Job_dep)) / n() * 100, 0),
+    Employee_count = round(sum(is.na(employee_count)) / n() * 100, 0),
+    Company_category = round(sum(is.na(company_category)) / n() * 100, 0),
+    Work_condition = round(sum(is.na(Work_condition)) / n() * 100, 0),
+    Working_hours = round(sum(is.na(Working_hours)) / n() * 100, 0),
+    TYPE_CONTRACT = round(sum(is.na(TYPE_CONTRACT)) / n() * 100, 0)
+  ) %>% 
+  arrange(desc(Remuneration))
+
+kable(aw_na_by_emptype_percent, caption = "Percentage of Missing Values by Employment type")
+```
+
+###### Data by Job 42
+
+We try to go further in the analysis by identifying if using the variable "JOB_42" we found some logical pattern. Some categories have a low percentage of missing values.
 
 ```{r}
 #Reminder  acvite_worker_data is computed through active_workers_data learn_merged_uncoded %>% filter(act == "ACT1.1")
@@ -925,7 +953,6 @@ aw_na_by_job_n <- active_workers_data %>%
     Working_hours = round(sum(is.na(Working_hours)), 0),
     TYPE_CONTRACT = round(sum(is.na(TYPE_CONTRACT)), 0)
   )
-aw_na_by_job_n
 
 kable(aw_na_by_job_n, caption = "Number of Missing Values by Job 42 Translated for ACT1.1")
 ```
@@ -934,9 +961,13 @@ kable(aw_na_by_job_n, caption = "Number of Missing Values by Job 42 Translated f
 
 ```
 
+###### Data by the binary variable "Studying"
+
+No clear pattern where found for studying alone.
+
 ```{r}
-active_workers_data %>%
-  group_by(JOB_42_translated) %>%
+aw_na_by_job_studying <- active_workers_data %>%
+  group_by(Studying) %>%
   summarise(
     Remuneration = round(sum(is.na(remuneration)) / n() * 100, 0),
     ECO_SECT = round(sum(is.na(ECO_SECT)) / n() * 100, 0),
@@ -949,4 +980,6 @@ active_workers_data %>%
     TYPE_CONTRACT = round(sum(is.na(TYPE_CONTRACT)) / n() * 100, 0)
   ) %>% 
   arrange(desc(Remuneration))
+
+kable(aw_na_by_job_studying, caption = "Percentage of Missing Values regarding whether the individual study or not for ACT1.1")
 ```
