@@ -20,6 +20,7 @@ library(mice, warn.conflicts = FALSE)
 library(purrr)
 
 ```
+
 # Learn
 
 ## Data Loading
@@ -34,6 +35,16 @@ retired_former <- vroom(here("Data - source", "project-10-files", "learn_dataset
 retired_jobs <- vroom(here("Data - source", "project-10-files", "learn_dataset_retired_jobs.csv"), delim = ",", show_col_types = FALSE)
 retired_pension <- vroom(here("Data - source", "project-10-files", "learn_dataset_retired_pension.csv"), delim = ",", show_col_types = FALSE)
 sports <- vroom(here("Data - source", "project-10-files", "learn_dataset_sport.csv"), delim = ",", show_col_types = FALSE)
+
+city_adm <- vroom(here("Data - source", "project-10-files", "city_adm.csv"), delim = ",", show_col_types = FALSE)
+
+city_loc <- vroom(here("Data - source", "project-10-files", "city_loc.csv"), delim = ",", show_col_types = FALSE)
+
+city_pop <- vroom(here("Data - source", "project-10-files", "city_pop.csv"), delim = ",", show_col_types = FALSE)
+
+departments <- vroom(here("Data - source", "project-10-files", "departments.csv"), delim = ",", show_col_types = FALSE)
+
+regions <- vroom(here("Data - source", "project-10-files", "regions.csv"), delim = ",", show_col_types = FALSE)
 ```
 
 ### Stratify or Not?
@@ -58,66 +69,6 @@ ggplot(target_df, aes(x = Target, y = Proportion, fill = Target)) +
 
 **Because the response variable is a bit imbalanced, we will use stratify sampling. But it is not that serious so we don't need up-sampling or down-sampling**
 
-## Looking into data sets
-
-### missing values
-
-```{r}
-p0 <- gg_miss_var(learn)
-p1 <- gg_miss_var(emp_type)
-p2 <- gg_miss_var(job)
-p3 <- gg_miss_var(retired_former)
-p4 <- gg_miss_var(retired_jobs)
-p5 <- gg_miss_var(retired_pension)
-p6 <- gg_miss_var(sports)
-
-missing_values_plot <- plot_grid(p2, p4, ncol = 2, labels = c('job', 'retired_jobs'), label_size = 12)
-
-missing_values_plot
-```
-
-**I looked at each plot and above are the two data sets with missing values**
-
-### employment type
-
-```{r}
-emp_counts <- table(emp_type$emp_type)
-emp_proportions <- prop.table(emp_counts)
-emp_df <- as.data.frame(emp_proportions)
-colnames(emp_df) <- c("emp", "Proportion")
-
-
-ggplot(emp_df, aes(x = emp, y = Proportion, fill = emp)) +
-  geom_bar(stat = "identity") +
-  scale_y_continuous(labels = scales::percent) +
-  labs(
-    title = "Maximum - Emplois sans limite de durée, CDI, titulaire de la fonction publique",
-    x = "Emp Type",
-    y = "Proportion"
-  ) +
-  theme_minimal()
-```
-
-### jobs
-```{r}
-emp_counts <- table(emp_type$emp_type)
-emp_proportions <- prop.table(emp_counts)
-emp_df <- as.data.frame(emp_proportions)
-colnames(emp_df) <- c("emp", "Proportion")
-
-
-ggplot(emp_df, aes(x = emp, y = Proportion, fill = emp)) +
-  geom_bar(stat = "identity") +
-  scale_y_continuous(labels = scales::percent) +
-  labs(
-    title = "Maximum - Emplois sans limite de durée, CDI, titulaire de la fonction publique",
-    x = "Emp Type",
-    y = "Proportion"
-  ) +
-  theme_minimal()
-```
-
-
 ## Combining Learn Data
 
 ```{r}
@@ -128,6 +79,9 @@ learn <- learn %>%
   left_join(retired_jobs, by = "PRIMARY_KEY") |>
   left_join(retired_pension, by = "PRIMARY_KEY") |>
   left_join(sports, by = "PRIMARY_KEY") |>
+  left_join(city_adm, by = "INSEE") |>
+  left_join(city_pop, by = "INSEE") |>
+  left_join(departments, by = "DEP") |>
   
   mutate(TYPE_CONTRACT = ifelse(is.na(TYPE_OF_CONTRACT.x), TYPE_OF_CONTRACT.y, TYPE_OF_CONTRACT.x)) |>
   select(-TYPE_OF_CONTRACT.x, -TYPE_OF_CONTRACT.y) |>
@@ -157,6 +111,97 @@ learn <- learn %>%
   select(-job_category.x, -job_category.y)
 ```
 
+### missing values
+
+```{r}
+miss_learn <- gg_miss_var(learn, show_pct = TRUE) +
+  theme_minimal() +
+  labs(title = "Missing Data in Learn Dataset")
+
+miss_learn
+```
+
+### Retirement Pay
+
+The pension is calculated on three factors:
+
+-   Average Yearly Income for 25 best-earning years
+-   payment rate
+-   total length of insurance, including periods credited as periods of insurance
+
+There are also difference organsiations for departments [more detail here](https://www.cleiss.fr/docs/regimes/regime_france/an_3.html). Bit of literature also shows difference in retirees income in mainland France and whole [population](https://www.connexionfrance.com/magazine/profile-of-retirees-in-france-and-their-pensions-with-comparison-to-uk-and-us/697013).
+
+For NA values I am trying to predict retirement pay based on variables in our data that can be possible proxies for above factors.
+
+| Factors                 | Proxies                                                 |
+|-------------------------|---------------------------------------------------------|
+| Income                  | `LAST_JOB_42` `last_emp_type` `JOB_42` `retirement_age` |
+| Departmental difference | `INSEE` `DEP`                                           |
+
+```{r}
+# Subset Data for Imputation
+impute_columns <- c("Retirement_pay", "LAST_JOB_42", "last_emp_type", "retirement_age", "INSEE", "JOB_42", "DEP")
+impute_data <- learn[, impute_columns]
+
+# Set up MICE Imputation
+method <- make.method(impute_data)
+method["Retirement_pay"] <- "rf"
+method["LAST_JOB_42"] <- "polyreg"
+method["last_emp_type"] <- "polyreg"
+
+predictor_matrix <- make.predictorMatrix(impute_data)
+predictor_matrix[, "Retirement_pay"] <- 0  # Prevent target leakage
+
+# Perform Imputation
+set.seed(123)
+imputed_data <- mice(impute_data, method = method, predictorMatrix = predictor_matrix, m = 1, maxit = 10)
+
+# Extract Completed Data
+completed_data <- complete(imputed_data)
+
+# Update Dataset with Imputed Values
+learn$Retirement_pay <- completed_data$Retirement_pay
+learn$LAST_JOB_42 <- completed_data$LAST_JOB_42
+learn$last_emp_type <- completed_data$last_emp_type
+```
+
+### missing values – each data
+
+```{r}
+p1 <- gg_miss_var(emp_type)
+p2 <- gg_miss_var(job)
+p3 <- gg_miss_var(retired_former)
+p4 <- gg_miss_var(retired_jobs)
+p5 <- gg_miss_var(retired_pension)
+p6 <- gg_miss_var(sports)
+
+missing_values_plot <- plot_grid(p2, p4, ncol = 2, labels = c('job', 'retired_jobs'), label_size = 12)
+
+missing_values_plot
+```
+
+**I looked at each plot and above are the two data sets with missing values**
+
+### employment type
+
+```{r}
+emp_counts <- table(learn$emp_type)
+emp_proportions <- prop.table(emp_counts)
+emp_df <- as.data.frame(emp_proportions)
+colnames(emp_df) <- c("emp", "Proportion")
+
+
+ggplot(emp_df, aes(x = emp, y = Proportion, fill = emp)) +
+  geom_bar(stat = "identity") +
+  scale_y_continuous(labels = scales::percent) +
+  labs(
+    title = "Maximum - Emplois sans limite de durée, CDI, titulaire de la fonction publique",
+    x = "Emp Type",
+    y = "Proportion"
+  ) +
+  theme_minimal()
+```
+
 # Test
 
 ## Load Test Data
@@ -171,7 +216,6 @@ test_retired_pension <- vroom(here("Data - source", "project-10-files", "test_da
 test_sports <- vroom(here("Data - source", "project-10-files", "test_dataset_sport.csv"), delim = ",", show_col_types = FALSE)
 ```
 
-
 ## Combine Test Data
 
 ```{r}
@@ -183,4 +227,3 @@ test <- test %>%
   left_join(test_retired_pension, by = "PRIMARY_KEY") |>
   left_join(test_sports, by = "PRIMARY_KEY")
 ```
-
