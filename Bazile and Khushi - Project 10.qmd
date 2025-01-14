@@ -604,12 +604,145 @@ comparison_table <- learn_merged_uncoded %>%
 learn_merged_uncoded <- learn_merged_uncoded %>%
   select(-Libellé)
 rm(code_company_category)
+
+################################ ECO - sect ###############################
+
+# Import du fichier CSV
+code_ECO_SECT <- read_csv("Data - source/project-10-files/code/code_ECO_SECT.csv")
+
+learn_merged_uncoded <- learn_merged_uncoded
+
+# Fusion des données
+learn_merged_uncoded <- merge(learn_merged_uncoded, code_ECO_SECT, by.x = "ECO_SECT", by.y = "Code", all.x = TRUE, all.y = FALSE)
+sum(is.na(learn_merged_uncoded$Libellé))  # Vérification des valeurs manquantes
+
+# Traduction de "ECO_SECT"
+learn_merged_uncoded <- learn_merged_uncoded %>%
+  mutate(ECO_SECT_translated = case_when(
+    grepl("Agriculture, sylviculture et pêche", Libellé) ~ "Agriculture, forestry, and fishing",
+    grepl("Industries extractives", Libellé) ~ "Mining and quarrying",
+    grepl("Fabrication de denrées alimentaires", Libellé) ~ "Food, beverage, and tobacco manufacturing",
+    grepl("Fabrication de textiles", Libellé) ~ "Textile, clothing, leather, and footwear manufacturing",
+    grepl("Travail du bois", Libellé) ~ "Woodworking, paper industries, and printing",
+    grepl("Cokéfaction et raffinage", Libellé) ~ "Coke and refining",
+    grepl("Industrie chimique", Libellé) ~ "Chemical industry",
+    grepl("Industrie pharmaceutique", Libellé) ~ "Pharmaceutical industry",
+    grepl("Fabrication de produits en caoutchouc", Libellé) ~ "Rubber, plastic, and non-metallic mineral products manufacturing",
+    grepl("Métallurgie", Libellé) ~ "Metallurgy and metal products manufacturing (excluding machinery and equipment)",
+    grepl("Fabrication de produits informatiques", Libellé) ~ "Manufacture of computer, electronic, and optical products",
+    grepl("Fabrication d'équipements électriques", Libellé) ~ "Electrical equipment manufacturing",
+    grepl("Fabrication de machines", Libellé) ~ "Manufacture of machinery and equipment",
+    grepl("Fabrication de matériels de transport", Libellé) ~ "Manufacture of transport equipment",
+    grepl("Autres industries manufacturières", Libellé) ~ "Other manufacturing industries; repair and installation of machinery",
+    grepl("Production et distribution d'électricité", Libellé) ~ "Electricity, gas, steam, and air conditioning supply",
+    grepl("Production et distribution d'eau", Libellé) ~ "Water supply, sewerage, waste management, and remediation activities",
+    grepl("Construction", Libellé) ~ "Construction",
+    grepl("Commerce ; réparation d'automobiles", Libellé) ~ "Wholesale, retail trade, and repair of motor vehicles and motorcycles",
+    grepl("Transports et entreposage", Libellé) ~ "Transportation and storage",
+    grepl("Hébergement et restauration", Libellé) ~ "Accommodation and food service activities",
+    grepl("Edition, audiovisuel et diffusion", Libellé) ~ "Publishing, broadcasting, and media",
+    grepl("Télécommunications", Libellé) ~ "Telecommunications",
+    grepl("Activités informatiques et services d'information", Libellé) ~ "Information technology and information services",
+    grepl("Activités financières et d'assurance", Libellé) ~ "Financial and insurance activities",
+    grepl("Activités immobilières", Libellé) ~ "Real estate activities",
+    grepl("Activités juridiques, comptables", Libellé) ~ "Legal, accounting, management, architecture, engineering, and technical analysis activities",
+    grepl("Recherche-développement scientifique", Libellé) ~ "Scientific research and development",
+    grepl("Autres activités spécialisées", Libellé) ~ "Other specialized, scientific, and technical activities",
+    grepl("Activités de services administratifs", Libellé) ~ "Administrative and support service activities",
+    grepl("Administration publique", Libellé) ~ "Public administration",
+    grepl("Enseignement", Libellé) ~ "Education",
+    grepl("Activités pour la santé humaine", Libellé) ~ "Human health activities",
+    grepl("Hébergement médico-social", Libellé) ~ "Residential care and social work activities",
+    grepl("Arts, spectacles et activités récréatives", Libellé) ~ "Arts, entertainment, and recreation",
+    grepl("Autres activités de services", Libellé) ~ "Other service activities",
+    grepl("Activités des ménages en tant qu'employeurs", Libellé) ~ "Household employment activities",
+    grepl("Activités extra-territoriales", Libellé) ~ "Extraterrestrial activities",
+    TRUE ~ Libellé  # Garder le libellé original si aucune correspondance n'est trouvée
+  ))
+
+# Comparaison pour vérifier les traductions
+comparison_table <- learn_merged_uncoded %>%
+  select(Libellé, ECO_SECT_translated) %>%
+  distinct()
+
+# Suppression des colonnes inutiles
+learn_merged_uncoded <- learn_merged_uncoded %>%
+  select(-Libellé)
+rm(code_ECO_SECT)
 ```
 
-```{r,results = "hide"}
+```{r Addition_of_the_translation_of_the_code_part_final, results = "hide"}
+
+################################ Work Condition ###############################
+# Translation
+learn_merged_uncoded <- learn_merged_uncoded %>%
+  mutate(Work_condition_translated = case_when(
+    Work_condition == "C" ~ "Full-time",
+    Work_condition == "P" ~ "Part-time",
+    Work_condition == "N" ~ "Not applicable",
+    TRUE ~ Work_condition  # Conserver l'original si aucune correspondance
+  ))
+
+# Checking
+comparison_table_work_condition <- learn_merged_uncoded %>%
+  select(Work_condition, Work_condition_translated) %>%
+  distinct()
 
 
+################################ Job Category ###############################
+# Traduction de "job_category"
+learn_merged_uncoded <- learn_merged_uncoded %>%
+  mutate(job_category_translated = case_when(
+    job_category == "O" ~ "Ordinary job",
+    job_category == "A" ~ "Apprenticeship",
+    job_category == "X" ~ "Other (subsidized job, trainee, unemployment benefit)",
+    TRUE ~ job_category  # Conserver l'original si aucune correspondance
+  ))
 
+# Comparaison des colonnes originales et traduites pour "job_category"
+comparison_table_job_category <- learn_merged_uncoded %>%
+  select(job_category, job_category_translated) %>%
+  distinct()
+
+print(comparison_table_job_category)
+
+################################ Employee Count ###############################
+# Translation and decrypting
+learn_merged_uncoded <- learn_merged_uncoded %>%
+  mutate(employee_count_translated = case_when(
+    employee_count == "tr_0" ~ "0 employee (employees present during the year but not on 31/12)",
+    employee_count == "tr_1" ~ "1 to 9 employees",
+    employee_count == "tr_2" ~ "10 to 19 employees",
+    employee_count == "tr_3" ~ "20 to 49 employees",
+    employee_count == "tr_4" ~ "50 to 99 employees",
+    employee_count == "tr_5" ~ "100 to 249 employees",
+    employee_count == "tr_6" ~ "250 employees and more",
+    TRUE ~ employee_count  # Conserver l'original si aucune correspondance
+  ))
+
+# Check
+comparison_table_employee_count <- learn_merged_uncoded %>%
+  select(employee_count, employee_count_translated) %>%
+  distinct()
+
+################################ Sup. col. for checking ###############################
+rm(comparison_table)
+rm(comparison_table_employee_count)
+rm(comparison_table_job_category)
+rm(comparison_table_work_condition)
+
+################################ Sup. col. original ###############################
+columns_to_drop <- c(
+  "ECO_SECT", "company_category", "last_emp_type", "emp_type", "LAST_JOB_42", "JOB_42",
+  "Highest_degree", "Household_type", "act", "town_type")
+
+
+learn_merged_uncoded_clean <- learn_merged_uncoded %>%
+  select(-all_of(columns_to_drop))
+
+################################    Export en csv     ###############################
+write_csv(learn_merged_uncoded, "created csvs/learn_merged_uncoded.csv")
+write_csv(learn_merged_uncoded_clean, "created csvs/learn_merged_uncoded_clean.csv")
 
 ```
 
