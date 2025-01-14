@@ -91,7 +91,19 @@ learn_merged <- learn_df %>%
   left_join(learn_retired_former, by = "PRIMARY_KEY") %>%
   left_join(learn_retired_jobs, by = "PRIMARY_KEY") %>%
   left_join(learn_retired_pension, by = "PRIMARY_KEY") %>%
-  left_join(learn_sport, by = "PRIMARY_KEY")
+  left_join(learn_sport, by = "PRIMARY_KEY") %>% 
+
+   mutate(TYPE_CONTRACT = ifelse(is.na(TYPE_OF_CONTRACT.x), TYPE_OF_CONTRACT.y, TYPE_OF_CONTRACT.x),
+         Working_hours = ifelse(is.na(Working_hours.x), Working_hours.y, Working_hours.x),
+         Work_condition = ifelse(is.na(Work_condition.x), Work_condition.y, Work_condition.x),
+         company_category = ifelse(is.na(company_category.x), company_category.y, company_category.x),
+         ECO_SECT = ifelse(is.na(ECO_SECT.x), ECO_SECT.y, ECO_SECT.x),
+         job_desc = ifelse(is.na(job_desc.x), job_desc.y, job_desc.x),
+         employee_count = ifelse(is.na(employee_count.x), employee_count.y, employee_count.x),
+         Job_dep = ifelse(is.na(Job_dep.x), Job_dep.y, Job_dep.x),
+         job_category = ifelse(is.na(job_category.x), job_category.y, job_category.x)) %>%
+  
+  select(-ends_with(".x"), -ends_with(".y"))
 ```
 
 ```{r Create_the_dataframe_test_data_part_one}
@@ -416,29 +428,192 @@ comparison_table <- learn_merged_uncoded %>%
 learn_merged_uncoded <- learn_merged_uncoded %>%
   select(-Libellé)
 rm(code_JOB_42)
-```
-
-```{r}
-
 
 ```
 
-```{r}
+```{r Addition_of_the_translation_of_the_code_part_two, results = "hide"}
+
+################################ Code LAST JOB 42 ###############################
+# Import
+code_JOB_42 <- read_csv("Data - source/project-10-files/code/code_JOB_42.csv")
+
+# Merging
+learn_merged_uncoded <- merge(learn_merged_uncoded, code_JOB_42, by.x = "LAST_JOB_42", by.y = "Code", all.x = TRUE, all.y = FALSE)
+sum(is.na(learn_merged_uncoded$Libellé)) # Check for missing values
+
+# Translation
+learn_merged_uncoded <- learn_merged_uncoded %>%
+  mutate(LAST_JOB_42_translated = case_when(
+    grepl("Agriculteurs sur petite exploitation", Libellé) ~ "Small-scale farmers",
+    grepl("Agriculteurs sur moyenne exploitation", Libellé) ~ "Medium-scale farmers",
+    grepl("Agriculteurs sur grande exploitation", Libellé) ~ "Large-scale farmers",
+    grepl("Artisans", Libellé) ~ "Craftsmen",
+    grepl("Commerçants et assimilés", Libellé) ~ "Merchants and related trades",
+    grepl("Chefs d'entreprise de 10 salariés ou plus", Libellé) ~ "Business owners with 10 or more employees",
+    grepl("Professions libérales", Libellé) ~ "Freelancers or independent professionals",
+    grepl("Cadres de la fonction publique", Libellé) ~ "Public sector executives",
+    grepl("Professeurs, professions scientifiques", Libellé) ~ "Teachers and scientific professionals",
+    grepl("Professions de l'information, des arts et des spectacles", Libellé) ~ "Information, arts, and entertainment professionals",
+    grepl("Clergé, religieux", Libellé) ~ "Clergy and religious professionals",
+    grepl("Cadres administratifs et commerciaux d'entreprise", Libellé) ~ "Corporate administrative and commercial executives",
+    grepl("Ingénieurs et cadres techniques d'entreprise", Libellé) ~ "Engineers and technical managers",
+    grepl("Techniciens", Libellé) ~ "Technicians",
+    grepl("Contremaîtres, agents de maîtrise", Libellé) ~ "Foremen and supervisors",
+    grepl("Employés civils et agents de service de la fonction publique", Libellé) ~ "Public sector employees and service agents",
+    grepl("Policiers et militaires", Libellé) ~ "Police and military personnel",
+    grepl("Employés administratifs d'entreprise", Libellé) ~ "Corporate administrative employees",
+    grepl("Employés de commerce", Libellé) ~ "Retail employees",
+    grepl("Personnels des services directs aux particuliers", Libellé) ~ "Personal service workers",
+    grepl("Ouvriers qualifiés de type industriel", Libellé) ~ "Skilled industrial workers",
+    grepl("Ouvriers qualifiés de type artisanal", Libellé) ~ "Skilled artisanal workers",
+    grepl("Ouvriers qualifiés de la manutention, du magasinage et du transport", Libellé) ~ "Skilled manual and transport workers",
+    grepl("Ouvriers non qualifiés de type industriel", Libellé) ~ "Unskilled industrial workers",
+    grepl("Ouvriers non qualifiés de type artisanal", Libellé) ~ "Unskilled artisanal workers",
+    grepl("Ouvriers agricoles", Libellé) ~ "Agricultural workers",
+    grepl("Chauffeurs", Libellé) ~ "Drivers",
+    grepl("Anciens agriculteurs exploitants", Libellé) ~ "Retired farmers",
+    grepl("Anciens artisans, commerçants, chefs d'entreprise", Libellé) ~ "Retired craftsmen, merchants, and business owners",
+    grepl("Anciens cadres", Libellé) ~ "Retired executives",
+    grepl("Anciens employés", Libellé) ~ "Retired employees",
+    grepl("Anciens ouvriers", Libellé) ~ "Retired workers",
+    grepl("Chômeurs n'ayant jamais travaillé", Libellé) ~ "Unemployed who have never worked",
+    grepl("tudiant", Libellé) ~ "Students",
+    grepl("de moins de 60 ans", Libellé) ~ "People without professional activity under 60 (excluded Retired ppl)",
+    grepl("Personnes diverses sans activité professionnelle de 60 ans et plus", Libellé) ~ "People without professional activity 60 and older (excluded Retired ppl)",
+    grepl("Professeurs des écoles, instituteurs et assimilés", Libellé) ~ "Primary school teachers, instructors, and related professions",
+  grepl("Professions intermédiaires de la santé et du travail social", Libellé) ~ "Intermediate health and social work professions",
+  grepl("Clergé religieux", Libellé) ~ "Clergy and religious professionals",
+  grepl("Professions intermédiaires administratives de la fonction publique", Libellé) ~ "Intermediate administrative professions in public administration",
+  grepl("Professions intermédiaires administratives et commerciales des entreprises", Libellé) ~ "Intermediate administrative and commercial professions in companies",
+  grepl("Anciennes professions intermédiaires", Libellé) ~ "Former intermediate professions",
+  grepl("du travail social", Libellé) ~ "Intermediate health and social work professionals",
+    TRUE ~ Libellé  # Default: keep original if no match
+  ))
 
 
 
+# Display the comparison of unique French values with their translations to check if there are any mistakes
+comparison_table <- learn_merged_uncoded %>%
+  select(Libellé, LAST_JOB_42_translated) %>%
+  distinct()
 
-```
-
-```{r}
 # Suppression of unuseful data
 learn_merged_uncoded <- learn_merged_uncoded %>%
   select(-Libellé)
 rm(code_JOB_42)
 
-missing_translations <- learn_merged_uncoded %>%
-  filter(JOB_42_translated == Libellé)
-print(missing_translations)
+
+################################ Code Emp type ###############################
+# Import code
+code_emp_type <- read_csv("Data - source/project-10-files/code/code_emp_type.csv")
+
+# Merging
+learn_merged_uncoded <- merge(learn_merged_uncoded, code_emp_type, by.x = "emp_type", by.y = "Code", all.x = TRUE, all.y = FALSE)
+sum(is.na(learn_merged_uncoded$Libellé))  # Vérification des valeurs manquantes
+
+# Traduction des libellés
+learn_merged_uncoded <- learn_merged_uncoded %>%
+  mutate(emp_type_translated = case_when(
+    grepl("apprentissage", Libellé) ~ "Apprenticeship or professionalization contract",
+    grepl("agence d'intérim", Libellé) ~ "Temporary placement through an agency",
+    grepl("Emplois aidés", Libellé) ~ "Subsidized jobs (insertion contracts, etc.)",
+    grepl("Stagiaires rémunérés", Libellé) ~ "Paid trainees in companies",
+    grepl("CDD", Libellé) ~ "Other fixed-term jobs, fixed-term contracts, short-term contracts, seasonal contracts, temporary contracts, etc.",
+    grepl("CDI", Libellé) ~ "Permanent contract (CDI)",
+    grepl("Non salariés : Indépendants", Libellé, ignore.case = TRUE) ~ "Self-employed: Independents",
+    grepl("Non salariés : Employeurs", Libellé, ignore.case = TRUE) ~ "Self-employed: Employers",
+    grepl("Non salariés : Aides familiaux", Libellé, ignore.case = TRUE) ~ "Self-employed: Family helpers",
+    TRUE ~ Libellé))
+
+
+# Affichage du tableau comparatif des valeurs uniques pour vérifier les traductions
+comparison_table <- learn_merged_uncoded %>%
+  select(Libellé, emp_type_translated) %>%
+  distinct()
+
+# Suppression des colonnes inutiles
+learn_merged_uncoded <- learn_merged_uncoded %>%
+  select(-Libellé)
+
+# Optionnel : suppression du dataset si plus nécessaire
+rm(code_emp_type)
+
+################################ Code Emp type ###############################
+# Import code
+code_emp_type <- read_csv("Data - source/project-10-files/code/code_emp_type.csv")
+
+# Merging
+learn_merged_uncoded <- merge(learn_merged_uncoded, code_emp_type, by.x = "last_emp_type", by.y = "Code", all.x = TRUE, all.y = FALSE)
+sum(is.na(learn_merged_uncoded$Libellé))  # Vérification des valeurs manquantes
+
+# Traduction des libellés
+learn_merged_uncoded <- learn_merged_uncoded %>%
+  mutate(last_emp_type_translated = case_when(
+    grepl("apprentissage", Libellé) ~ "Apprenticeship or professionalization contract",
+    grepl("agence d'intérim", Libellé) ~ "Temporary placement through an agency",
+    grepl("Emplois aidés", Libellé) ~ "Subsidized jobs (insertion contracts, etc.)",
+    grepl("Stagiaires rémunérés", Libellé) ~ "Paid trainees in companies",
+    grepl("CDD", Libellé) ~ "Other fixed-term jobs, fixed-term contracts, short-term contracts, seasonal contracts, temporary contracts, etc.",
+    grepl("CDI", Libellé) ~ "Permanent contract (CDI)",
+    grepl("Non salariés : Indépendants", Libellé, ignore.case = TRUE) ~ "Self-employed: Independents",
+    grepl("Non salariés : Employeurs", Libellé, ignore.case = TRUE) ~ "Self-employed: Employers",
+    grepl("Non salariés : Aides familiaux", Libellé, ignore.case = TRUE) ~ "Self-employed: Family helpers",
+    TRUE ~ Libellé))
+
+
+# Affichage du tableau comparatif des valeurs uniques pour vérifier les traductions
+comparison_table <- learn_merged_uncoded %>%
+  select(Libellé, last_emp_type_translated) %>%
+  distinct()
+
+# Suppression des colonnes inutiles
+learn_merged_uncoded <- learn_merged_uncoded %>%
+  select(-Libellé)
+
+# Optionnel : suppression du dataset si plus nécessaire
+rm(code_emp_type)
+
+################################ Code Company category ###############################
+# Importation
+code_company_category <- read_csv("Data - source/project-10-files/code/code_company_category.csv")
+
+# Merging
+learn_merged_uncoded <- merge(learn_merged_uncoded, code_company_category, by.x = "company_category", by.y = "Code", all.x = TRUE, all.y = FALSE)
+sum(is.na(learn_merged_uncoded$Libellé))  # Vérification des valeurs manquantes
+
+# Translation
+learn_merged_uncoded <- learn_merged_uncoded %>%
+  mutate(company_category_translated = case_when(
+    grepl("Fonction publique d'état", Libellé) ~ "State public service",
+    grepl("Fonction publique territoriale", Libellé) ~ "Territorial public service",
+    grepl("Fonction publique hospitalière", Libellé) ~ "Public hospital service",
+    grepl("Autres organismes publics administratifs", Libellé) ~ "Other public administrative organizations",
+    grepl("Personnes morales de droit public", Libellé) ~ "Legal entities under public law subject to commercial law",
+    grepl("Entreprises individuelles", Libellé) ~ "Individual enterprises",
+    grepl("Données marquées comme issues de pe particuliers employeurs", Libellé) ~ "Data flagged as private individual employers",
+    grepl("Organismes privés spécialisés et groupements de droit privé", Libellé) ~ "Private organizations and groups",
+    grepl("Autres sociétés privées", Libellé) ~ "Other private companies",
+    TRUE ~ Libellé))
+
+# Checking
+comparison_table <- learn_merged_uncoded %>%
+  select(Libellé, company_category_translated) %>%
+  distinct()
+
+# Suppress unused data
+learn_merged_uncoded <- learn_merged_uncoded %>%
+  select(-Libellé)
+rm(code_company_category)
+```
+
+```{r,results = "hide"}
+
+
+
+
+```
+
+```{r results = "hide"}
 
 ```
 
