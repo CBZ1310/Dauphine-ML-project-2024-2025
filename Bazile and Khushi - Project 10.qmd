@@ -42,7 +42,7 @@ learn_df %>%  summarise_all(~ sum(is.na(.))) # No missing data
 
 # Test dataset
 ## Import data
-test_df <- read_csv("Data - source/project-10-files/learn_dataset.csv")
+test_df <- read_csv("Data - source/project-10-files/test_dataset.csv")
 any(duplicated(learn_df$KEY_PRIMARY)) 
 
 ##Check for NA
@@ -52,7 +52,7 @@ any(duplicated(test_df$KEY_PRIMARY))
 
 The principal datasets, both from the learning and testing phases, do not contain missing values or duplicates. However, as indicated in the instructions, a large number of missing values exist when adding the additional data on retirement, sports, and jobs.
 
-```{r Create_the_dataframe_learning_data}
+```{r Create_the_dataframe_learning_data_part_one}
 
 # Import additional data
 
@@ -78,6 +78,12 @@ any(duplicated(learn_retired_pension$KEY_PRIMARY))
 any(duplicated(learn_sport$KEY_PRIMARY))
 # No duplicates found
 
+
+
+
+```
+
+```{r Create_the_dataframe_learning_data_part_two}
 # Merger with left join
 learn_merged <- learn_df %>%
   left_join(learn_emp_type, by = "PRIMARY_KEY") %>%
@@ -86,11 +92,9 @@ learn_merged <- learn_df %>%
   left_join(learn_retired_jobs, by = "PRIMARY_KEY") %>%
   left_join(learn_retired_pension, by = "PRIMARY_KEY") %>%
   left_join(learn_sport, by = "PRIMARY_KEY")
-
-
 ```
 
-```{r Create_the_dataframe_test_data}
+```{r Create_the_dataframe_test_data_part_one}
 
 # Import additional data
 
@@ -115,6 +119,10 @@ any(duplicated(test_retired_jobs$KEY_PRIMARY))
 any(duplicated(test_retired_pension$KEY_PRIMARY))
 any(duplicated(test_sport$KEY_PRIMARY))
 # No duplicates found
+
+```
+
+```{r Create_the_dataframe_test_data_part_two}
 
 # Merger with left join
 test_merged <- test_df %>%
@@ -164,15 +172,15 @@ na_sum_table <- bind_rows(learn_na_count, learn_na_percentage, test_na_count, te
 print(na_sum_table)
 ```
 
-In addition to the learning and test dataset, we also used to additional dataset
+In addition to the learning and test dataset, we also used to additional dataset :
 
--   the variable "community_size" of "city_pop", even if the target variable is not describe demographic size of a town has strong correlation with market size, job and available infrastructure;
+-   the variable "community_size" of "city_pop" : our hypothezis is even if the target variable is not described demographic size of a town has strong correlation with market size, job and available infrastructure and thus information that can probably impact this targert variable;
 
--   the variable "town_type" of the dataset "city_adm" : our hypothesis key cities like state capital or "préfecture" can benefit from greater investment and infrastucture or at the opposite it is because of their historical attractivity that they add be chosen as "préfecture";
+-   the variable "town_type" of the dataset "city_adm" : our hypothesis is that key cities like state capital or "préfecture" can benefit from greater investment and infrastucture. Similarly, because of their historical attractivity that they add be chosen as "préfecture";
 
 -   and, the variable "dep" of the dataset "city_adm" in order to take into account potential departemental variation.
 
-No missing values were found to report..
+No missing values were found to report.
 
 ```{r Addition_of_demographic_data}
 # Importation of the  dataset
