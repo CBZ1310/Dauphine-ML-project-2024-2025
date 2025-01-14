@@ -16,7 +16,11 @@ library(dplyr)
 library(ggplot2)
 library(naniar) ##missing values
 library(cowplot) ##for combining graphs
+library(mice, warn.conflicts = FALSE)
+library(purrr)
+
 ```
+# Learn
 
 ## Data Loading
 
@@ -59,6 +63,7 @@ ggplot(target_df, aes(x = Target, y = Proportion, fill = Target)) +
 ### missing values
 
 ```{r}
+p0 <- gg_miss_var(learn)
 p1 <- gg_miss_var(emp_type)
 p2 <- gg_miss_var(job)
 p3 <- gg_miss_var(retired_former)
@@ -67,7 +72,6 @@ p5 <- gg_miss_var(retired_pension)
 p6 <- gg_miss_var(sports)
 
 missing_values_plot <- plot_grid(p2, p4, ncol = 2, labels = c('job', 'retired_jobs'), label_size = 12)
-
 
 missing_values_plot
 ```
@@ -94,6 +98,26 @@ ggplot(emp_df, aes(x = emp, y = Proportion, fill = emp)) +
   theme_minimal()
 ```
 
+### jobs
+```{r}
+emp_counts <- table(emp_type$emp_type)
+emp_proportions <- prop.table(emp_counts)
+emp_df <- as.data.frame(emp_proportions)
+colnames(emp_df) <- c("emp", "Proportion")
+
+
+ggplot(emp_df, aes(x = emp, y = Proportion, fill = emp)) +
+  geom_bar(stat = "identity") +
+  scale_y_continuous(labels = scales::percent) +
+  labs(
+    title = "Maximum - Emplois sans limite de durée, CDI, titulaire de la fonction publique",
+    x = "Emp Type",
+    y = "Proportion"
+  ) +
+  theme_minimal()
+```
+
+
 ## Combining Learn Data
 
 ```{r}
@@ -103,8 +127,37 @@ learn <- learn %>%
   left_join(retired_former, by = "PRIMARY_KEY") |>
   left_join(retired_jobs, by = "PRIMARY_KEY") |>
   left_join(retired_pension, by = "PRIMARY_KEY") |>
-  left_join(sports, by = "PRIMARY_KEY")
+  left_join(sports, by = "PRIMARY_KEY") |>
+  
+  mutate(TYPE_CONTRACT = ifelse(is.na(TYPE_OF_CONTRACT.x), TYPE_OF_CONTRACT.y, TYPE_OF_CONTRACT.x)) |>
+  select(-TYPE_OF_CONTRACT.x, -TYPE_OF_CONTRACT.y) |>
+  
+  mutate(Working_hours = ifelse(is.na(Working_hours.x), Working_hours.y, Working_hours.x)) |>
+  select(-Working_hours.x, -Working_hours.y) |>
+  
+    mutate(Work_condition = ifelse(is.na(Work_condition.x), Work_condition.y, Work_condition.x)) |>
+  select(-Work_condition.x, -Work_condition.y) |>
+  
+  mutate(company_category = ifelse(is.na(company_category.x), company_category.y, company_category.x)) |>
+  select(-company_category.x, -company_category.y) |>
+  
+  mutate(ECO_SECT = ifelse(is.na(ECO_SECT.x), ECO_SECT.y, ECO_SECT.x)) |>
+  select(-ECO_SECT.x, -ECO_SECT.y) |>
+  
+  mutate(job_desc = ifelse(is.na(job_desc.x), job_desc.y, job_desc.x)) |>
+  select(-job_desc.x, -job_desc.y) |>
+  
+  mutate(employee_count = ifelse(is.na(employee_count.x), employee_count.y, employee_count.x)) %>%
+  select(-employee_count.x, -employee_count.y) |>
+  
+  mutate(Job_dep = ifelse(is.na(Job_dep.x), Job_dep.y, Job_dep.x)) |>
+  select(-Job_dep.x, -Job_dep.y) |>
+  
+  mutate(job_category = ifelse(is.na(job_category.x), job_category.y, job_category.x)) |>
+  select(-job_category.x, -job_category.y)
 ```
+
+# Test
 
 ## Load Test Data
 
@@ -118,6 +171,7 @@ test_retired_pension <- vroom(here("Data - source", "project-10-files", "test_da
 test_sports <- vroom(here("Data - source", "project-10-files", "test_dataset_sport.csv"), delim = ",", show_col_types = FALSE)
 ```
 
+
 ## Combine Test Data
 
 ```{r}
@@ -129,3 +183,4 @@ test <- test %>%
   left_join(test_retired_pension, by = "PRIMARY_KEY") |>
   left_join(test_sports, by = "PRIMARY_KEY")
 ```
+
