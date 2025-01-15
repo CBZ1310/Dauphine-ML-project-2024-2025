@@ -237,7 +237,7 @@ rm(demo_test_na_count)
 rm(demo_learn_na_count)
 ```
 
-# N/A
+## N/A
 
 ```{r Addition_of_the_translation_of_the_code, results = "hide"}
 ################################     Town type       ###############################
@@ -1068,3 +1068,107 @@ non_na_percentage_by_act_ret <- learn_merged_uncoded %>%
 kable(non_na_percentage_by_act_ret, caption = "Percentage of Non-Missing Values by Activity Status (Percentage relative to the column)")
 
 ```
+
+Only 2% of the retired individual has missing values for retirement-related data. One variable is an exception : the retirement pay.
+
+```{r}
+#
+na_percentage_by_act_value <- learn_merged_uncoded %>%
+  group_by(act_translated) %>%
+  summarise(
+    LAST_JOB_42 = round(sum(is.na(LAST_JOB_42)) / n() * 100, 2),
+    last_emp_type = round(sum(is.na(last_emp_type)) / n() * 100, 2),
+    retirement_age = round(sum(is.na(retirement_age)) / n() * 100, 2),
+    Retirement_pay = round(sum(is.na(Retirement_pay)) / n() * 100, 2)
+  ) %>%
+  arrange(desc(LAST_JOB_42))  # Trier par la colonne LAST_JOB_42
+
+# Affichage du tableau formaté
+kable(na_percentage_by_act_value, caption = "Percentage of Missing Values by Column for Each Activity Status")
+
+```
+
+The minimum value of retirement pay for retired person is non null. An hypothesis could be that the null value corresponds to retired person without retirement pay. However, regarding the french welfare system, this hypothesis seems to us to have a low probability to be true.
+
+```{r}
+#Dataset with only retired people 
+# + : adition of a factorial value for retirement pay for the following graph
+retirees_data <- learn_merged_uncoded %>%
+  filter(act_translated == "Retirees or early retirees")
+
+#Stats on retirement pay
+summary_stats <- learn_merged_uncoded %>%
+  filter(act_translated == "Retirees or early retirees") %>%
+  summarise(
+    min = min(Retirement_pay, na.rm = TRUE),
+    max = max(Retirement_pay, na.rm = TRUE),
+    mean = mean(Retirement_pay, na.rm = TRUE),
+    median = median(Retirement_pay, na.rm = TRUE),
+    sd = sd(Retirement_pay, na.rm = TRUE),
+    na_count = sum(is.na(Retirement_pay))
+  )
+
+summary_stats
+
+```
+
+#### Missing values regarding sport-related variable
+
+The last part of the data exploration concern missing values of the "Club Membership Dataset". There are datas with the highest percentage of missing values and a prevalence so important of NA that the question was wheter to use them or not. Similarly to the last part, the question was if this missing values was explained by structural relationships.
+
+The percent of person with non missing values are lower in students. A plausible hypothesis is that the number of missing values is (partially) driven by the number of person who does not practice a sport. However, it is unkown if other factor explain the distribution of the variable.
+
+```{r}
+# Total number of non-NA per column
+total_na_per_column_sport <- learn_merged_uncoded %>%
+  summarise(
+    Total_sport = sum(is.na(sports)))
+
+# Our final table with percentages of non-missing values
+na_percentage_by_act_sport <- learn_merged_uncoded %>%
+  group_by(act_translated) %>%
+  summarise(
+    sports = round(sum(is.na(sports)) / n() * 100, 2)) %>%
+  arrange(desc(sports))
+
+# Display the table with kable
+kable(na_percentage_by_act_sport, caption = "Percentage of Missing Values by Activity Status (Percentage relative to the population in row)")
+
+```
+
+## Used solution
+
+Basing our reflections on the descriptive statistics of the next sections, several decisions were maded :
+
+1.  Not using variable in the sport dataset : because of its high number of missing values and non clear pattern, the variable was put aside.
+
+2.  For work-related variable
+
+3.  For retirement related-variable :
+
+    -   let the NA for non-retired individual because it corresponds to natural missing values
+
+    -   Impute data for LAST_Job42, last_emp_type and retirement_age using modal value
+
+    -   Impyte the data for retirement_pay using
+
+```{r}
+distri_ret_pay <- ggplot(retirees_data, aes(x = Retirement_pay)) +
+  geom_histogram(bins = 70, fill = "skyblue", color = "black") +
+  labs(
+    title = "Distribution of Retirement Pay for Retirees or Early Retirees",
+    x = "Retirement Pay",
+    y = "Frequency"
+  ) +
+  theme_minimal() +
+  geom_vline(aes(xintercept = mean(Retirement_pay, na.rm = TRUE), color = "Mean"), linetype = "dashed", size = 1) +
+  geom_vline(aes(xintercept = median(Retirement_pay, na.rm = TRUE), color = "Median"), linetype = "dashed", size = 1) +
+  scale_color_manual(values = c("Mean" = "orange", "Median" = "pink"), name = "Statistics")
+
+# using plotly
+ggplotly(distri_ret_pay)
+```
+
+# References
+
+<https://medium.com/>@ajayverma23/data-imputation-a-comprehensive-guide-to-handling-missing-values-b5c7d11c3488
