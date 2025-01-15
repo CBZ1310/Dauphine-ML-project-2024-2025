@@ -111,7 +111,7 @@ learn <- learn %>%
   select(-job_category.x, -job_category.y)
 ```
 
-### missing values
+### Missing Values
 
 ```{r}
 miss_learn <- gg_miss_var(learn, show_pct = TRUE) +
@@ -123,25 +123,57 @@ miss_learn
 
 ### Retirement Pay
 
+```{r}
+min(learn$retirement_age, na.rm = TRUE)
+```
+
+```{r}
+minimum_retirement_age <- 36 
+official_retirement_age <- 62 
+
+retirement_check <- learn |> 
+  mutate(
+    is_retired = ifelse(AGE_2019 >= minimum_retirement_age, TRUE, FALSE), 
+    valid_retirement_age = case_when(
+      is_retired & !is.na(retirement_age) ~ "Retired with valid age",
+      is_retired & is.na(retirement_age)  ~ "Retired without age",
+      !is_retired & is.na(retirement_age) ~ "Not retired, no age (valid)",
+      !is_retired & !is.na(retirement_age) ~ "Not retired, has age (invalid)"
+    )
+  )
+
+missing_retirement_age <- retirement_check |> 
+  filter(AGE_2019 >= official_retirement_age, is.na(retirement_age)) |> 
+  summarize("individuals aged 62 or older without a reported retirement age" = n())
+
+print(missing_retirement_age)
+
+
+```
+
 The pension is calculated on three factors:
 
 -   Average Yearly Income for 25 best-earning years
 -   payment rate
 -   total length of insurance, including periods credited as periods of insurance
 
-There are also difference organsiations for departments [more detail here](https://www.cleiss.fr/docs/regimes/regime_france/an_3.html). Bit of literature also shows difference in retirees income in mainland France and whole [population](https://www.connexionfrance.com/magazine/profile-of-retirees-in-france-and-their-pensions-with-comparison-to-uk-and-us/697013).
+There are also different organsiations for departments [more detail here](https://www.cleiss.fr/docs/regimes/regime_france/an_3.html). Bit of literature also shows difference in retirees income in mainland France and whole [population](https://www.connexionfrance.com/magazine/profile-of-retirees-in-france-and-their-pensions-with-comparison-to-uk-and-us/697013).
 
 For NA values I am trying to predict retirement pay based on variables in our data that can be possible proxies for above factors.
 
 | Factors                 | Proxies                                                 |
-|-------------------------|---------------------------------------------------------|
+|-----------------------|-------------------------------------------------|
 | Income                  | `LAST_JOB_42` `last_emp_type` `JOB_42` `retirement_age` |
 | Departmental difference | `INSEE` `DEP`                                           |
 
+Adding filters for minimium retirement age noted, student and job status.
+
 ```{r}
 # Subset Data for Imputation
-impute_columns <- c("Retirement_pay", "LAST_JOB_42", "last_emp_type", "retirement_age", "INSEE", "JOB_42", "DEP")
-impute_data <- learn[, impute_columns]
+impute_columns <- c("Retirement_pay", "LAST_JOB_42", "last_emp_type", "retirement_age", "INSEE", "JOB_42", "DEP", "Studying")
+impute_data <- learn[, impute_columns] |>
+  as_tibble() |>
+  filter(retirement_age >= 36, Studying==FALSE, JOB_42 %in% c("csp_7_1", "csp_7_2", "csp_7_4", "csp_7_5", "csp_7_7", "csp_7_8", "csp_8_5", "csp_8_6"))
 
 # Set up MICE Imputation
 method <- make.method(impute_data)
@@ -150,19 +182,42 @@ method["LAST_JOB_42"] <- "polyreg"
 method["last_emp_type"] <- "polyreg"
 
 predictor_matrix <- make.predictorMatrix(impute_data)
-predictor_matrix[, "Retirement_pay"] <- 0  # Prevent target leakage
+predictor_matrix[, "Retirement_pay"] <- 0 
 
 # Perform Imputation
 set.seed(123)
 imputed_data <- mice(impute_data, method = method, predictorMatrix = predictor_matrix, m = 1, maxit = 10)
 
 # Extract Completed Data
+library(mice)
+
 completed_data <- complete(imputed_data)
+completed_data <- completed_data |> 
+  select(INSEE, Retirement_pay)
+
+
+# Ensure there's an identifier column to match rows
+learn <- learn |> 
+  left_join(completed_data, by = "INSEE") |> 
+  mutate(Retirement_pay = coalesce(Retirement_pay.y, Retirement_pay.x)) |> 
+  select(-Retirement_pay.x, -Retirement_pay.y)
 
 # Update Dataset with Imputed Values
-learn$Retirement_pay <- completed_data$Retirement_pay
-learn$LAST_JOB_42 <- completed_data$LAST_JOB_42
-learn$last_emp_type <- completed_data$last_emp_type
+#learn$Retirement_pay <- completed_data$Retirement_pay
+#learn$LAST_JOB_42 <- completed_data$LAST_JOB_42
+#learn$last_emp_type <- completed_data$last_emp_type
+```
+
+```{r}
+gg_miss_var(learn, show_pct = TRUE) 
+```
+
+above graph to see again Retirement_pay after imputation.
+
+### EMP Data
+
+```{r}
+
 ```
 
 ### missing values – each data
