@@ -1013,7 +1013,7 @@ plot_missing(learn_merged_with_Na)
 To check this hypothesis, we look at the percentage of missing values by activity status.
 
 ```{r}
-# Calcul du total de NA pour chaque colonne
+# Total number of NA per column
 total_na_per_column <- learn_merged_uncoded %>%
   summarise(
     Total_LAST_JOB_42 = sum(is.na(LAST_JOB_42)),
@@ -1033,23 +1033,38 @@ na_percentage_by_act_ret <- learn_merged_uncoded %>%
   ) %>%
   arrange(desc(LAST_JOB_42))
 
-# Affichage du tableau avec kable
+
 kable(na_percentage_by_act_ret, caption = "Percentage of Missing Values by Activity Status (Percentage relative to the column)")
 
 
 ```
 
+By precaution, we wanted to check whether there were retirement data for active workers. However, the sanity check did not find any.
+
 ```{r}
-retired_data <- learn_merged_uncoded %>%
-  filter(JOB_42_translated == "Retired workers")
+# Same work for non missing values
 
-summary(retired_data$remuneration)
+# Total number of non-NA per column
+total_non_na_per_column <- learn_merged_uncoded %>%
+  summarise(
+    Total_LAST_JOB_42 = sum(!is.na(LAST_JOB_42)),
+    Total_last_emp_type = sum(!is.na(last_emp_type)),
+    Total_retirement_age = sum(!is.na(retirement_age)),
+    Total_Retirement_pay = sum(!is.na(Retirement_pay))
+  )
 
-ggplot(learn_merged, aes(x = remuneration)) +
-  geom_histogram(bins = 30, fill = "skyblue", color = "black") +
-  labs(
-    title = "Distribution de la rémunération des Retired Workers",
-    x = "Rémunération",
-    y = "Fréquence"
-  ) 
+# Our final table with percentages of non-missing values
+non_na_percentage_by_act_ret <- learn_merged_uncoded %>%
+  group_by(act_translated) %>%
+  summarise(
+    LAST_JOB_42 = round(sum(!is.na(LAST_JOB_42)) / total_non_na_per_column$Total_LAST_JOB_42 * 100, 2),
+    last_emp_type = round(sum(!is.na(last_emp_type)) / total_non_na_per_column$Total_last_emp_type * 100, 2),
+    retirement_age = round(sum(!is.na(retirement_age)) / total_non_na_per_column$Total_retirement_age * 100, 2),
+    Retirement_pay = round(sum(!is.na(Retirement_pay)) / total_non_na_per_column$Total_Retirement_pay * 100, 2)
+  ) %>%
+  arrange(desc(LAST_JOB_42))
+
+# Display the table with kable
+kable(non_na_percentage_by_act_ret, caption = "Percentage of Non-Missing Values by Activity Status (Percentage relative to the column)")
+
 ```
