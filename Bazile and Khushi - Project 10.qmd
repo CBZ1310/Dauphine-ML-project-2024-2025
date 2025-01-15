@@ -760,6 +760,19 @@ na_percentage_per_column <- learn_merged %>%
 na_percentage_per_column
 ```
 
+Using the library "DateExplorer", we can visualize the result above.
+
+```{r}
+plot_missing(learn_merged) 
+```
+
+```{r}
+
+learn_merged_with_Na <- learn_merged[, colSums(is.na(learn_merged)) > 1]
+
+plot_missing(learn_merged_with_Na)
+```
+
 #### Missing values regarding employment variables
 
 ##### Analysis by activity status
@@ -982,4 +995,61 @@ aw_na_by_job_studying <- active_workers_data %>%
   arrange(desc(Remuneration))
 
 kable(aw_na_by_job_studying, caption = "Percentage of Missing Values regarding whether the individual study or not for ACT1.1")
+```
+
+#### Missing values regarding employment variables
+
+##### Analysis by activity status
+
+As a reminder, the variables with the bigger number of missing values are often linked with retirement status. Our hypothesis were that a large chunk of the missing values in the column linked to retired (column starting by "LAST" or containing a name of the lexical field of "retirement") correspond to rows with non-retired individual.
+
+```{r}
+
+learn_merged_with_Na <- learn_merged[, colSums(is.na(learn_merged)) > 1]
+
+plot_missing(learn_merged_with_Na)
+```
+
+To check this hypothesis, we look at the percentage of missing values by activity status.
+
+```{r}
+# Calcul du total de NA pour chaque colonne
+total_na_per_column <- learn_merged_uncoded %>%
+  summarise(
+    Total_LAST_JOB_42 = sum(is.na(LAST_JOB_42)),
+    Total_last_emp_type = sum(is.na(last_emp_type)),
+    Total_retirement_age = sum(is.na(retirement_age)),
+    Total_Retirement_pay = sum(is.na(Retirement_pay))
+  )
+
+# Our final table
+na_percentage_by_act_ret <- learn_merged_uncoded %>%
+  group_by(act_translated) %>%
+  summarise(
+    LAST_JOB_42 = round(sum(is.na(LAST_JOB_42)) / total_na_per_column$Total_LAST_JOB_42 * 100, 2),
+    last_emp_type = round(sum(is.na(last_emp_type)) / total_na_per_column$Total_last_emp_type * 100, 2),
+    retirement_age = round(sum(is.na(retirement_age)) / total_na_per_column$Total_retirement_age * 100, 2),
+    Retirement_pay = round(sum(is.na(Retirement_pay)) / total_na_per_column$Total_Retirement_pay * 100, 2)
+  ) %>%
+  arrange(desc(LAST_JOB_42))
+
+# Affichage du tableau avec kable
+kable(na_percentage_by_act_ret, caption = "Percentage of Missing Values by Activity Status (Percentage relative to the column)")
+
+
+```
+
+```{r}
+retired_data <- learn_merged_uncoded %>%
+  filter(JOB_42_translated == "Retired workers")
+
+summary(retired_data$remuneration)
+
+ggplot(learn_merged, aes(x = remuneration)) +
+  geom_histogram(bins = 30, fill = "skyblue", color = "black") +
+  labs(
+    title = "Distribution de la rémunération des Retired Workers",
+    x = "Rémunération",
+    y = "Fréquence"
+  ) 
 ```
