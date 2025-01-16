@@ -17,12 +17,15 @@ library(tidyr)
 library(data.table)
 library(stringr)
 library(knitr)
+library(missForest)
+
 
 
 ## Graphics libraries
 library(ggplot2)
 library(scales)
 library(plotly)
+library(DataExplorer)
 
 ## ML
 library(torch)
@@ -845,6 +848,30 @@ kable(na_percentage_by_act, caption = "Percentage of Missing Values by Activity 
 
 ```
 
+The table below summarizes the number of missing values for each category
+
+```{r}
+na_percentage_by_act <- learn_merged_uncoded %>%
+  group_by(act_translated) %>%
+  summarise(
+    Remuneration = round((sum(is.na(remuneration)) / n()) * 100, 0),
+    ECO_SECT = round((sum(is.na(ECO_SECT)) / n()) * 100, 0),
+    Emp_type = round((sum(is.na(emp_type)) / n()) * 100, 0),
+    Job_category = round((sum(is.na(job_category)) / n()) * 100, 0),
+    Job_dep = round((sum(is.na(Job_dep)) / n()) * 100, 0),
+    Employee_count = round((sum(is.na(employee_count)) / n()) * 100, 0),
+    Company_category = round((sum(is.na(company_category)) / n()) * 100, 0),
+    Work_condition = round((sum(is.na(Work_condition)) / n()) * 100, 0),
+    Working_hours = round((sum(is.na(Working_hours)) / n()) * 100, 0),
+    TYPE_CONTRACT = round((sum(is.na(TYPE_CONTRACT)) / n()) * 100, 0)
+  ) %>%
+  arrange(desc(Remuneration))
+
+kable(na_percentage_by_act, caption = "Percentage of Missing Values by Activity Status (Rounded to Nearest Whole Number)")
+
+
+```
+
 ##### Zoom on active workers
 
 To be more precise, as we can see below, in average 20% of the employment data for Active workers are missing in several variables.
@@ -970,10 +997,6 @@ aw_na_by_job_n <- active_workers_data %>%
 kable(aw_na_by_job_n, caption = "Number of Missing Values by Job 42 Translated for ACT1.1")
 ```
 
-```{r}
-
-```
-
 ###### Data by the binary variable "Studying"
 
 No clear pattern where found for studying alone.
@@ -997,7 +1020,7 @@ aw_na_by_job_studying <- active_workers_data %>%
 kable(aw_na_by_job_studying, caption = "Percentage of Missing Values regarding whether the individual study or not for ACT1.1")
 ```
 
-#### Missing values regarding employment variables
+#### Missing values regarding retirement variables
 
 ##### Analysis by activity status
 
@@ -1081,10 +1104,10 @@ na_percentage_by_act_value <- learn_merged_uncoded %>%
     retirement_age = round(sum(is.na(retirement_age)) / n() * 100, 2),
     Retirement_pay = round(sum(is.na(Retirement_pay)) / n() * 100, 2)
   ) %>%
-  arrange(desc(LAST_JOB_42))  # Trier par la colonne LAST_JOB_42
+  arrange(desc(LAST_JOB_42))  
 
-# Affichage du tableau formaté
-kable(na_percentage_by_act_value, caption = "Percentage of Missing Values by Column for Each Activity Status")
+
+kable(na_percentage_by_act_value, caption = "Percentage of Missing Values  for Each Activity Status")
 
 ```
 
@@ -1142,18 +1165,134 @@ Basing our reflections on the descriptive statistics of the next sections, sever
 
 1.  Not using variable in the sport dataset : because of its high number of missing values and non clear pattern, the variable was put aside.
 
-2.  For work-related variable
+2.  For work-related variable :
+
+    -   Fill yhe missing valjes with "Not applicable" for all non-numerical variables and"-1" for numerical values for the active status that are not either retiree or active worker
+
+    ```{r}
+    # (1) Define the list of work-related variables
+    work_related_var <- c("remuneration", "ECO_SECT", "emp_type", "job_category",
+                          "Job_dep", "employee_count", "company_category",
+                          "Work_condition", "Working_hours", "TYPE_CONTRACT")
+
+    # (2) Apply transformation using a loop
+    for (var in work_related_var) {
+      learn_merged[[var]] <- ifelse(
+        is.na(learn_merged[[var]]) & !(learn_merged$act %in% c("ACT2.1", "ACT1.1")) & is.numeric(learn_merged[[var]]), 
+        -1,
+        ifelse(
+          is.na(learn_merged[[var]]) & !(learn_merged$act %in% c("ACT2.1", "ACT1.1")) & !is.numeric(learn_merged[[var]]), 
+          "Not applicable", 
+          learn_merged[[var]]))}
+
+    learn_merged %>% group_by(act) %>% 
+      summarise(across(all_of(work_related_var), ~ sum(is.na(.)))) %>%
+      knitr::kable(caption = "Number of Missing Values after Transformation")
+
+
+    ```
+
+    -   And to impute missing values for the other
+
+        ```{r}
+
+        ```
 
 3.  For retirement related-variable :
 
-    -   let the NA for non-retired individual because it corresponds to natural missing values
+    -   Fill the missing values for non-retired people with "Not applicable" (for non numeric value) or "-1" (for numerical one)
 
-    -   Impute data for LAST_Job42, last_emp_type and retirement_age using modal value
+    ```{r}
+    # (1) Define the list of retirement-related variables
+    retirement_related_var <- c("LAST_JOB_42", "last_emp_type", "retirement_age", "Retirement_pay")
 
-    -   Impyte the data for retirement_pay using
+    # (2) Apply the transformation only for missing values when act is NOT "ACT2.1"
+    for (var in retirement_related_var) {
+      learn_merged[[var]] <- ifelse(
+        is.na(learn_merged[[var]]) & learn_merged$act != "ACT2.1" & is.numeric(learn_merged[[var]]),
+        -1,
+        ifelse(
+          is.na(learn_merged[[var]]) & learn_merged$act != "ACT2.1" & !is.numeric(learn_merged[[var]]),
+          "Not applicable",
+          learn_merged[[var]]
+        )
+      )
+    }
+
+    # (3) Visualize the percentage of missing values after transformation
+
+    learn_merged %>% group_by(act) %>% 
+      summarise(across(all_of(retirement_related_var), ~ sum(is.na(.)))) %>%
+      knitr::kable(caption = "Number of Missing Values after Transformation")
+    ```
+
+    -   For retired people :impute the missing values
 
 ```{r}
-distri_ret_pay <- ggplot(retirees_data, aes(x = Retirement_pay)) +
+
+# Variables for imputation
+retirement_related_var <- c("LAST_JOB_42", "last_emp_type", "retirement_age", "Retirement_pay")
+
+
+
+#####################   Reminder : Stats before imputation    #####################
+
+# Summary of missing values (number of missing values) grouped by `act`
+before_imputation_number <- learn_merged %>%
+  group_by(act) %>%
+  summarise(across(all_of(retirement_related_var), ~ sum(is.na(.)))) 
+
+before_imputation_number %>%
+  kable(caption = "Number of Missing Values by `act` Before Imputation")
+
+# Summary of missing values (percentage of missing values) grouped by `act`
+before_imputation_percentage <- learn_merged %>%
+  group_by(act) %>%
+  summarise(across(all_of(retirement_related_var), ~ round(sum(is.na(.)) / n() * 100, 2))) 
+
+
+before_imputation_percentage %>%
+  kable(caption = "Percentage of Missing Values by `act` Before Imputation")
+
+#############################       Imputation        ##############################
+# Subset the dataframe for rows where act == "ACT2.1"
+retired_people <- learn_merged[learn_merged$act == "ACT2.1", ]
+
+# Select the relevant columns for imputation (excluding "target")
+impute_data <- retired_people[, retirement_related_var]
+impute_data <- impute_data[, !(colnames(impute_data) %in% "target")]  # Ensure "target" is excluded if present
+
+# Perform Random Forest-based imputation with missForest
+imputed_rf <- missForest(impute_data)
+completed_data_rf <- imputed_rf$ximp  # Get the imputed data
+
+# Reassign the imputed values back to the original dataframe
+learn_merged[learn_merged$act == "ACT2.1", retirement_related_var] <- completed_data_rf
+
+# Summary of missing values (number of missing values) after imputation grouped by `act`
+after_imputation_number <- learn_merged %>%
+  group_by(act) %>%
+  summarise(across(all_of(retirement_related_var), ~ sum(is.na(.))))
+
+# Display the summary table for the number of missing values after imputation using kable
+after_imputation_number %>%
+  kable(caption = "Number of Missing Values by `act` After Imputation")
+
+# Summary of missing values (percentage of missing values) after imputation grouped by `act`
+after_imputation_percentage <- learn_merged %>%
+  group_by(act) %>%
+  summarise(across(all_of(retirement_related_var), ~ round(sum(is.na(.)) / n() * 100, 2)))
+
+# Display the summary table for the percentage of missing values after imputation using kable
+after_imputation_percentage %>%
+  kable(caption = "Percentage of Missing Values by `act` After Imputation")
+
+```
+
+# Annex
+
+```{r}
+ggplot(retirees_data, aes(x = Retirement_pay)) +
   geom_histogram(bins = 70, fill = "skyblue", color = "black") +
   labs(
     title = "Distribution of Retirement Pay for Retirees or Early Retirees",
@@ -1165,8 +1304,7 @@ distri_ret_pay <- ggplot(retirees_data, aes(x = Retirement_pay)) +
   geom_vline(aes(xintercept = median(Retirement_pay, na.rm = TRUE), color = "Median"), linetype = "dashed", size = 1) +
   scale_color_manual(values = c("Mean" = "orange", "Median" = "pink"), name = "Statistics")
 
-# using plotly
-ggplotly(distri_ret_pay)
+
 ```
 
 # References
