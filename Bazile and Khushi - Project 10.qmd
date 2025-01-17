@@ -29,7 +29,11 @@ library(DataExplorer)
 library(viridis)
 
 ## ML
-library(torch)
+library(parsnip)
+library(tune)
+library(yardstick)
+library(randomForest)
+library(ranger)
 ```
 
 ## Introduction
@@ -241,6 +245,84 @@ rm(demo_test_na_count)
 rm(demo_learn_na_count)
 ```
 
+We started by looking at an overview of the dataset content. It allow us to see whether some variables were mischaracterized.
+
+```{r}
+# Creation of table with the type, number of variable and their name
+variable_summary <- learn_merged %>%
+  summarise(across(everything(), ~ class(.)[1])) %>%  
+  pivot_longer(cols = everything(), names_to = "Variable", values_to = "Type") %>% 
+  group_by(Type) %>% 
+  summarise(
+    `Number of Variables` = n(),
+    `List of Variables` = paste(Variable, collapse = ", "))
+
+variable_summary %>%
+  kable(
+    caption = "Summary of Variable Types in Dataset",
+    align = "l")
+
+```
+
+The table below list the different string variable and the number of unique value each of them has.
+
+```{r}
+# Identifying column considered as string
+string_columns_summary <- learn_merged %>%
+  select(where(is.character)) %>%
+  summarise(across(everything(), ~ n_distinct(.))) %>%
+  pivot_longer(cols = everything(), names_to = "Variable", values_to = "Unique Values")
+
+# Afficher le tableau avec un titre
+string_columns_summary %>%
+  kable(
+    col.names = c("Variable", "Unique values"),
+    caption = "Summary of String Variables and Their Unique Values",
+    align = "l"
+  )
+```
+
+We have 3 binary variables, studyig target and sex. We choose to transform sex into a binary variable
+
+```{r}
+learn_merged <- learn_merged %>%
+  mutate(sex = ifelse(sex == "Male", 1, 0))
+
+learn_merged <- learn_merged %>%
+  mutate(Studying = ifelse(Studying == "TRUE", 1, 0))
+```
+
+We also decided at this step of our work to transform the string values into factor.
+
+```{r}
+learn_merged <- learn_merged %>%
+  mutate(across(where(is.character), as.factor))
+
+test_merged <- test_merged %>%
+  mutate(across(where(is.character), as.factor))
+
+#checking final result
+variable_summary_after_transformation_learn <- learn_merged %>%
+  summarise(across(everything(), ~ class(.)[1])) %>%  
+  pivot_longer(cols = everything(), names_to = "Variable", values_to = "Type") %>% 
+  group_by(Type) %>% 
+  summarise(
+    `Number of Variables` = n(),
+    `List of Variables` = paste(Variable, collapse = ", "))
+
+variable_summary_after_transformation_test <- test_merged %>%
+  summarise(across(everything(), ~ class(.)[1])) %>%  
+  pivot_longer(cols = everything(), names_to = "Variable", values_to = "Type") %>% 
+  group_by(Type) %>% 
+  summarise(
+    `Number of Variables` = n(),
+    `List of Variables` = paste(Variable, collapse = ", "))
+
+rm(variable_summary_after_transformation_learn)
+rm(variable_summary_after_transformation_test)
+rm(variable_summary)
+```
+
 ## Exploring the dataset
 
 ### Distribution of the target variable
@@ -252,7 +334,7 @@ The target variable as a higher proportion of value equal to A than value equal 
 #Graphics 
 
 ## Count (N)
-ggplot(learn_merged, aes(x = as.factor(target), fill = as.factor(target))) +
+ggplot(learn_merged, aes(x = target, fill = target)) +
   geom_bar(width = 0.6) + # Réduction de la largeur des bins
   geom_text(stat = "count", aes(label = after_stat(count)), vjust = -0.5) + # Ajout des étiquettes avec `after_stat`
   labs(title = "Distribution of the Target Variable", x = "Target", y = "Count", fill = "Target") +
@@ -282,7 +364,7 @@ data_percent <- learn_merged %>%
   count(target) %>%
   mutate(percentage = (n / sum(n)) * 100)
 
-ggplot(data_percent, aes(x = 1, y = percentage, fill = as.factor(target))) +
+ggplot(data_percent, aes(x = 1, y = percentage, fill = target)) +
   geom_bar(stat = "identity") +
   geom_text(aes(label = paste0(round(percentage, 1), "%")), 
             position = position_stack(vjust = 0.5), color = "white", size = 4) +
@@ -803,8 +885,6 @@ learn_merged_uncoded_clean <- learn_merged_uncoded %>%
 
 ```
 
-### 
-
 The table below describe the percentage of missing value by variable in the learning set. The value of the main dataset has a 100% completion rate as we saw ealrier.
 
 ```{r}
@@ -1213,7 +1293,7 @@ Basing our reflections on the descriptive statistics of the next sections, sever
 columns_to_impute <- setdiff(colnames(learn_merged), c("target", "sports"))
 
 # Prepare the dataset for imputation (convert character columns to factors)
-impute_data <- learn_merged %>%
+learn_merged <- learn_merged %>%
   select(all_of(columns_to_impute)) %>%
   mutate(across(where(is.character), as.factor),  # Convert character columns to factors
     across(where(is.logical), as.factor)     # Convert logical columns to factors
@@ -1234,13 +1314,25 @@ before_imputation_summary %>%
   kable(caption = "Percentage of Missing Values Before Imputation for Each Variable")
 
 
-#############################       Imputation        ##############################
-# **Perform Random Forest-based imputation with missForest**
-imputed_rf <- missForest(impute_data)
-completed_data_rf <- imputed_rf$ximp  # Get the imputed data
 
-# Assign the imputed values back to the original dataframe
-learn_merged[, columns_to_impute] <- completed_data_rf
+
+
+```
+
+**Test with recipes**
+
+```{r}
+
+
+### Test with recipe
+
+lasagna <- recipe(target ~ ., data = learn_merged)
+knn_step <- lasagnaa %>% step_impute_knn(all(predictors()))
+
+knn_step
+
+
+
 
 ####################   Post - Imputation Summary  ##############################
 
@@ -1250,26 +1342,237 @@ after_imputation_summary %>%
   as.data.frame() %>%
   kable(caption = "Percentage of Missing Values After Imputation for Each Variable")
 
-
 ```
 
-# Annex
+**Test with recipes 2**
 
 ```{r}
-ggplot(retirees_data, aes(x = Retirement_pay)) +
-  geom_histogram(bins = 70, fill = "skyblue", color = "black") +
-  labs(
-    title = "Distribution of Retirement Pay for Retirees or Early Retirees",
-    x = "Retirement Pay",
-    y = "Frequency"
-  ) +
-  theme_minimal() +
-  geom_vline(aes(xintercept = mean(Retirement_pay, na.rm = TRUE), color = "Mean"), linetype = "dashed", size = 1) +
-  geom_vline(aes(xintercept = median(Retirement_pay, na.rm = TRUE), color = "Median"), linetype = "dashed", size = 1) +
-  scale_color_manual(values = c("Mean" = "orange", "Median" = "pink"), name = "Statistics")
+# Créer une recette en précisant que `target` est la variable cible
+knn_recipe <- recipe(target ~ ., data = learn_merged) %>%
+  step_impute_knn(all_predictors(), neighbors = 5)  # Appliquer KNN aux prédicteurs uniquement
 
+# Préparer et appliquer la recette
+knn_prep <- prep(knn_recipe, training = learn_merged)
+
+# Imputer les valeurs manquantes
+learn_merged_imputed <- bake(knn_prep, new_data = NULL)
+
+# Vérifier les résultats
+summary(learn_merged_imputed)
 
 ```
+
+**Test with misforest**
+
+Misforest is described as a nonparametric solution wihich is fitted to impute missing values with mixed-type data
+
+```{r}
+
+#############################       Imputation        ##############################
+# **Perform Random Forest-based imputation with missForest**
+imputed_test <- missForest(learn_merged, maxiter = 10, ntree = 100)
+
+####################   Post - Imputation Summary  ##############################
+after_imputation_summary <- learn_merged %>%
+  summarise(across(all_of(columns_to_impute), ~ round(sum(is.na(.)) / n() * 100, 2)))
+# Display a summary table of missing values after imputation
+after_imputation_summary %>%
+  t() %>%  # Transpose to show variables as rows
+  as.data.frame() %>%
+  kable(caption = "Percentage of Missing Values After Imputation for Each Variable")
+```
+
+```         
+```
+
+# Machine learning models
+
+One hot encoding
+
+```{r}
+# Pre-processing : Hot encoding
+```
+
+## Decision Tree
+
+```{r}
+##  Creation of the tree
+
+my_tree <- decision_tree(
+  cost_complexity = tune(),
+  min_n = tune(),
+  tree_depth = tune()
+) %>%
+  set_mode("classification") %>%
+  set_engine("rpart")
+
+
+## Generate the grid
+
+my_grid <- expand.grid(
+  cost_complexity = c(0, 0.1, 0.01, 0.001, 0.0001), 
+  min_n = c(2L, 7L, 12L, 24L, 48L, 84L, 100L),                
+  tree_depth = c(2L, 3L, 4L, 5L, 7L, 10L, 15L))
+
+## Re-sampling
+set.seed(12)
+compound_v <- vfold_cv(DATA_A_AJOUTER, v = 5, strata = target)
+
+## Using tune_grid on the tree
+
+
+X <- setdiff(names(DATA_A_AJOUTER), c("target", "sport"))
+
+model_formula <- as.formula(paste("target ~", paste(X, collapse = " + ")))
+
+my_tuned_tree <- my_tree %>% 
+  tune_grid(model_formula,
+            resamples = compound_v,
+            grid = my_grid,
+            control = control_grid(save_workflow = TRUE))
+```
+
+Graph
+
+```{r}
+tuning_results <- collect_metrics(my_tuned_tree)
+
+my_results <- tuning_results %>%
+  filter(.metric == "accuracy")
+
+min_n_graph_a <- ggplot(my_results, aes(x = min_n, y = mean, color = as.factor(tree_depth))) +
+  geom_line() +
+  geom_point() +
+  facet_wrap(~ cost_complexity, scales = "free_y") +
+  theme_minimal() +
+  labs(
+    title = "Accuracy by minimum number of observations per node and tree depth faceted by cost complexity",
+     y = "Accuracy",
+     color = "Tree Depth")
+
+print(min_n_graph_a)
+```
+
+Our final tree using accuracy as key metric has the following parameters :
+
+```{r}
+my_best_parameters <- my_tuned_tree %>%    select_best(metric = "accuracy")  kable(my_best_parameters, caption = "Best Parameters for the Decision Tree Model")
+```
+
+```{r}
+my_final_tree <- my_tree %>% 
+  finalize_model(my_best_parameters)
+
+final_fit <- my_final_tree %>% last_fit(model_formula, split = splitted_data)
+```
+
+Confusion Matrices
+
+## Random Forest
+
+```{r}
+#random forest model
+
+amazonia <- rand_forest(
+  mtry = tune(),
+  trees = tune(),
+  min_n = tune()) %>%
+  set_mode("classification") %>%
+  set_engine("ranger")
+
+# Grid
+my_grid_rf <- expand.grid(
+  mtry = c(1L, 3L, 5L, 7L, 9L, 12L,15L), 
+  min_n = c(2L, 7L, 12L, 24L, 36L, 48L),
+  trees = c(100L, 200L,300L))
+
+# Cv fold
+homelander <- vfold_cv(DATA_A_AJOUTER, v = 5, strata = target)
+
+amazonia_tuned <- tune_grid(
+  amazonia,
+  preprocessor = model_formula, 
+  resamples = homelander,
+  grid = my_grid_rf,
+  metrics = metric_set(accuracy, roc_auc))
+
+# Best parameters
+best_rf_params <- amazonia_tuned %>%
+  select_best(metric = "accuracy")
+```
+
+characteristics of the random forest
+
+```{r}
+print(best_rf_params)
+kable(best_rf_params, caption = "Table 4. Parameters of the random forest model")
+```
+
+```{r}
+# Final model
+final_amazonia_model <- amazonia %>%
+  finalize_model(best_rf_params)
+
+amazonia_fit <- final_amazonia_model %>%
+  fit(model_formula, data = train_data_rf)
+```
+
+Concusion matrices
+
+```{r}
+# Predictions on training set
+train_predictions_rf <- amazonia_fit %>%
+  predict(new_data = train_data_rf) %>%
+  bind_cols(train_data_rf %>% select(target))
+
+train_conf_matrix_rf <- train_predictions_rf %>%
+  conf_mat(truth = target, estimate = .pred_class)
+
+# Predictions on test set
+test_predictions_rf <- amazonia_fit %>%
+  predict(new_data = test_data_rf) %>%
+  bind_cols(test_data_rf %>% select(target))
+
+test_conf_matrix_rf <- test_predictions_rf %>%
+  conf_mat(truth = target, estimate = .pred_class)
+
+```
+
+```{r}
+# Heatmap for training set
+train_matrix_rf <- autoplot(train_conf_matrix_rf, type = "heatmap") +
+  scale_fill_viridis_c(option = "plasma") +
+  labs(title = "Panel A: Training Set (Random Forest)") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# Heatmap for test set
+test_matrix_rf <- autoplot(test_conf_matrix_rf, type = "heatmap") +
+  scale_fill_viridis_c(option = "plasma") +
+  labs(title = "Panel B: Test Set (Random Forest)") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# Combine the two heatmaps
+fusion_rf <- (train_matrix_rf | test_matrix_rf) +
+  plot_annotation(
+    title = "Figure 5: Confusion Matrices for Training and Test Sets (Random Forest)",
+    theme = theme(plot.title = element_text(hjust = 0.5)))
+
+# Display the combined heatmap
+print(fusion_rf)
+
+```
+
+```{r}
+train_metrics <- train_predictions_rf %>%
+  metrics(truth = target, estimate = .pred_class)
+
+# Print the metrics as a formatted table
+train_metrics %>%
+  kable(
+    caption = "Key Metrics for the Training Set (Random Forest)")
+```
+
+## **Gradient Boosting Machines**
 
 # References
 
