@@ -240,7 +240,22 @@ rm(demo_test_na_count)
 rm(demo_learn_na_count)
 ```
 
-## N/A
+## Exploring the dataset
+
+### Distribution of the target variable
+
+The number of
+
+```{r graph_distribution_target}
+
+ggplot(learn_merged, aes(x = as.factor(target))) +
+  geom_bar(fill = "darkred", color = "black") +
+  labs(title = "Distribution of the target variable", x = "Target", y = "N") +
+  theme_minimal()
+
+```
+
+### Understanding the NA
 
 ```{r Addition_of_the_translation_of_the_code, results = "hide"}
 ################################     Town type       ###############################
@@ -747,13 +762,9 @@ learn_merged_uncoded_clean <- learn_merged_uncoded %>%
 
 ```
 
-```{r results = "hide"}
+### 
 
-```
-
-### Understanding the NA
-
-The table below describe the percentage of missing value by variable in the learning set. The value of the main dataset has a 100% completion rate as we saw earmoer/
+The table below describe the percentage of missing value by variable in the learning set. The value of the main dataset has a 100% completion rate as we saw ealrier.
 
 ```{r}
 na_percentage_per_column <- learn_merged %>%
@@ -1214,10 +1225,7 @@ Basing our reflections on the descriptive statistics of the next sections, sever
         ifelse(
           is.na(learn_merged[[var]]) & learn_merged$act != "ACT2.1" & !is.numeric(learn_merged[[var]]),
           "Not applicable",
-          learn_merged[[var]]
-        )
-      )
-    }
+          learn_merged[[var]]))}
 
     # (3) Visualize the percentage of missing values after transformation
 
@@ -1230,62 +1238,49 @@ Basing our reflections on the descriptive statistics of the next sections, sever
 
 ```{r}
 
-# Variables for imputation
-retirement_related_var <- c("LAST_JOB_42", "last_emp_type", "retirement_age", "Retirement_pay")
+#####################   Preparatory work    #####################
+
+# Exclude "target" and "sports" columns from imputation
+columns_to_impute <- setdiff(colnames(learn_merged), c("target", "sports"))
+
+# Prepare the dataset for imputation (convert character columns to factors)
+impute_data <- learn_merged %>%
+  select(all_of(columns_to_impute)) %>%
+  mutate(across(where(is.character), as.factor),  # Convert character columns to factors
+    across(where(is.logical), as.factor)     # Convert logical columns to factors
+  )
+
 
 
 
 #####################   Reminder : Stats before imputation    #####################
 
-# Summary of missing values (number of missing values) grouped by `act`
-before_imputation_number <- learn_merged %>%
-  group_by(act) %>%
-  summarise(across(all_of(retirement_related_var), ~ sum(is.na(.)))) 
-
-before_imputation_number %>%
-  kable(caption = "Number of Missing Values by `act` Before Imputation")
-
-# Summary of missing values (percentage of missing values) grouped by `act`
-before_imputation_percentage <- learn_merged %>%
-  group_by(act) %>%
-  summarise(across(all_of(retirement_related_var), ~ round(sum(is.na(.)) / n() * 100, 2))) 
+before_imputation_summary <- learn_merged %>%
+  summarise(across(all_of(columns_to_impute), ~ round(sum(is.na(.)) / n() * 100, 2)))
 
 
-before_imputation_percentage %>%
-  kable(caption = "Percentage of Missing Values by `act` Before Imputation")
+before_imputation_summary %>%
+  t() %>%  
+  as.data.frame() %>%
+  kable(caption = "Percentage of Missing Values Before Imputation for Each Variable")
+
 
 #############################       Imputation        ##############################
-# Subset the dataframe for rows where act == "ACT2.1"
-retired_people <- learn_merged[learn_merged$act == "ACT2.1", ]
-
-# Select the relevant columns for imputation (excluding "target")
-impute_data <- retired_people[, retirement_related_var]
-impute_data <- impute_data[, !(colnames(impute_data) %in% "target")]  # Ensure "target" is excluded if present
-
-# Perform Random Forest-based imputation with missForest
+# **Perform Random Forest-based imputation with missForest**
 imputed_rf <- missForest(impute_data)
 completed_data_rf <- imputed_rf$ximp  # Get the imputed data
 
-# Reassign the imputed values back to the original dataframe
-learn_merged[learn_merged$act == "ACT2.1", retirement_related_var] <- completed_data_rf
+# Assign the imputed values back to the original dataframe
+learn_merged[, columns_to_impute] <- completed_data_rf
 
-# Summary of missing values (number of missing values) after imputation grouped by `act`
-after_imputation_number <- learn_merged %>%
-  group_by(act) %>%
-  summarise(across(all_of(retirement_related_var), ~ sum(is.na(.))))
+####################   Post - Imputation Summary  ##############################
 
-# Display the summary table for the number of missing values after imputation using kable
-after_imputation_number %>%
-  kable(caption = "Number of Missing Values by `act` After Imputation")
+# Display a summary table of missing values after imputation
+after_imputation_summary %>%
+  t() %>%  # Transpose to show variables as rows
+  as.data.frame() %>%
+  kable(caption = "Percentage of Missing Values After Imputation for Each Variable")
 
-# Summary of missing values (percentage of missing values) after imputation grouped by `act`
-after_imputation_percentage <- learn_merged %>%
-  group_by(act) %>%
-  summarise(across(all_of(retirement_related_var), ~ round(sum(is.na(.)) / n() * 100, 2)))
-
-# Display the summary table for the percentage of missing values after imputation using kable
-after_imputation_percentage %>%
-  kable(caption = "Percentage of Missing Values by `act` After Imputation")
 
 ```
 
