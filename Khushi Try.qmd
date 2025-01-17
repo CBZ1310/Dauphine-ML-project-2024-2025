@@ -18,7 +18,13 @@ library(naniar) ##missing values
 library(cowplot) ##for combining graphs
 library(mice, warn.conflicts = FALSE)
 library(purrr)
-
+library(caret)
+library(randomForest)
+library(data.table)
+library(themis)
+library(xgboost)
+library(rsample)
+library(corrr)
 ```
 
 # Learn
@@ -45,6 +51,8 @@ city_pop <- vroom(here("Data - source", "project-10-files", "city_pop.csv"), del
 departments <- vroom(here("Data - source", "project-10-files", "departments.csv"), delim = ",", show_col_types = FALSE)
 
 regions <- vroom(here("Data - source", "project-10-files", "regions.csv"), delim = ",", show_col_types = FALSE)
+
+learn_merged_uncoded_clean <- vroom(here("created csvs", "learn_merged_uncoded_clean.csv"), delim = ",", show_col_types = FALSE)
 ```
 
 ### Stratify or Not?
@@ -111,7 +119,7 @@ learn <- learn %>%
   select(-job_category.x, -job_category.y)
 ```
 
-### Missing Values
+## Missing Values
 
 ```{r}
 miss_learn <- gg_miss_var(learn, show_pct = TRUE) +
@@ -121,7 +129,78 @@ miss_learn <- gg_miss_var(learn, show_pct = TRUE) +
 miss_learn
 ```
 
-### Retirement Pay
+## MissForest
+https://rpubs.com/lmorgan95/MissForest#:~:text=MissForest%20is%20a%20random%20forest,then%20predicts%20the%20missing%20part.
+```{r}
+set.seed(111)
+train_index <- sample(nrow(learn), 700) 
+
+train <- learn[train_index, ]
+train_X <- prodNA(select(train, -target), 0.2) |>
+  mutate(across(where(is.character), as.factor)) |>
+  mutate(across(where(is.logical), as.factor))
+
+test <- learn[-train_index, ]
+test_X <- prodNA(select(test, -target), 0.2)|>
+  mutate(across(where(is.character), as.factor)) |>
+  mutate(across(where(is.logical), as.factor))
+```
+
+```{r}
+imputed_rf <- missForest(train_X)
+completed_data_rf <- imputed_rf$ximp 
+```
+
+
+
+```{r}
+work_related_var <- c("remuneration", "ECO_SECT", "emp_type", "job_category",
+                          "Job_dep", "employee_count", "company_category",
+                          "Work_condition", "Working_hours", "TYPE_CONTRACT")
+
+    # (2) Apply transformation using a loop
+    for (var in work_related_var) {
+      learn[[var]] <- ifelse(
+        is.na(learn[[var]]) & !(learn$act %in% c("ACT2.1", "ACT1.1")) & is.numeric(learn[[var]]), 
+        -1,
+        ifelse(
+          is.na(learn[[var]]) & !(learn$act %in% c("ACT2.1", "ACT1.1")) & !is.numeric(learn[[var]]), 
+          "Not applicable", 
+          learn[[var]]))}
+```
+
+
+```{r}
+ set.seed(20240108)
+learn_split <- initial_split(learn, prop = 0.8)
+learn_tr <- training(learn_split)
+learn_te <- testing(learn_split)
+```
+
+### Retirement
+```{r}
+learn_rec <- recipe (~ ., data = learn_tr) |>
+  step_impute_bag(Retirement_pay,
+                  impute_with = imp_vars("LAST_JOB_42", "last_emp_type", "retirement_age", "INSEE", "JOB_42", "DEP"),
+                  trees = 5) |>
+  prep()
+
+baked_learn <- bake(learn_rec, new_data = NULL)
+```
+
+Sanity Check -> 
+
+```{r}
+gg_miss_var(baked_learn, show_pct = TRUE) 
+```
+
+### Retirement
+
+Retirement variables with missing values `Retirement_pay` and `retirement_age`
+
+::: callout-note
+#### retirement_age
+:::
 
 ```{r}
 min(learn$retirement_age, na.rm = TRUE)
@@ -147,9 +226,11 @@ missing_retirement_age <- retirement_check |>
   summarize("individuals aged 62 or older without a reported retirement age" = n())
 
 print(missing_retirement_age)
-
-
 ```
+
+::: callout-note
+#### Retirement_pay
+:::
 
 The pension is calculated on three factors:
 
@@ -161,19 +242,20 @@ There are also different organsiations for departments [more detail here](https:
 
 For NA values I am trying to predict retirement pay based on variables in our data that can be possible proxies for above factors.
 
-| Factors                 | Proxies                                                 |
-|-----------------------|-------------------------------------------------|
-| Income                  | `LAST_JOB_42` `last_emp_type` `JOB_42` `retirement_age` |
-| Departmental difference | `INSEE` `DEP`                                           |
+| Factors                   | Proxies                                        |
+|------------------------|-----------------------------------------------|
+| Income                    | `LAST_JOB_42` `last_emp_type` `retirement_age` |
+| Departmental difference   | `INSEE` `DEP`                                  |
+| Job Categories Retirement | `JOB_42` `DEP` `Studying` `act`                |
 
-Adding filters for minimium retirement age noted, student and job status.
+Adding filters for minimum retirement age noted, student and job status.
 
 ```{r}
 # Subset Data for Imputation
-impute_columns <- c("Retirement_pay", "LAST_JOB_42", "last_emp_type", "retirement_age", "INSEE", "JOB_42", "DEP", "Studying")
+impute_columns <- c("Retirement_pay", "LAST_JOB_42", "last_emp_type", "retirement_age", "INSEE", "JOB_42", "DEP", "Studying", "act")
 impute_data <- learn[, impute_columns] |>
   as_tibble() |>
-  filter(retirement_age >= 36, Studying==FALSE, JOB_42 %in% c("csp_7_1", "csp_7_2", "csp_7_4", "csp_7_5", "csp_7_7", "csp_7_8", "csp_8_5", "csp_8_6"))
+  filter(retirement_age >= 36, Studying==FALSE, JOB_42 %in% c("csp_7_1", "csp_7_2", "csp_7_4", "csp_7_5", "csp_7_7", "csp_7_8", "csp_8_5", "csp_8_6"), act=="ACT2.1")
 
 # Set up MICE Imputation
 method <- make.method(impute_data)
@@ -208,16 +290,42 @@ learn <- learn |>
 #learn$last_emp_type <- completed_data$last_emp_type
 ```
 
-```{r}
-gg_miss_var(learn, show_pct = TRUE) 
-```
-
-above graph to see again Retirement_pay after imputation.
-
 ### EMP Data
 
 ```{r}
 
+```
+
+
+```{r}
+# Impute Missing Values for Employment Variables
+# Efficient handling of missing values for large datasets using base R
+employment_vars <- c("last_emp_type", "LAST_JOB_42", "TYPE_CONTRACT", "Working_hours", "company_category", "employee_count", "Work_condition", "sports", "LAST_DEP", "retirement_age", "remuneration", "emp_type", "Job_dep", "job_desc", "job_category", "ECO_SECT", "Retirement_pay")
+
+# Define a function for median/mode imputation
+impute_median_mode <- function(data, vars) {
+  for (var in vars) {
+    if (var %in% names(data)) {
+      if (is.numeric(data[[var]])) {
+        # Median for numeric variables
+        med_val <- median(data[[var]], na.rm = TRUE)
+        data[[var]][is.na(data[[var]])] <- med_val
+      } else {
+        # Mode for categorical variables
+        mode_val <- names(sort(table(data[[var]], useNA = "no"), decreasing = TRUE))[1]
+        data[[var]][is.na(data[[var]])] <- mode_val
+      }
+    }
+  }
+  return(data)
+}
+
+# Apply the function to impute missing values
+learn <- impute_median_mode(learn, employment_vars)
+```
+
+```{r}
+gg_miss_var(learn, show_pct = TRUE) 
 ```
 
 ### missing values – each data
@@ -257,9 +365,65 @@ ggplot(emp_df, aes(x = emp, y = Proportion, fill = emp)) +
   theme_minimal()
 ```
 
+# Machine Learning Model
+
+```{r}
+# Split Data into Train and Test Sets
+set.seed(123)
+trainIndex <- createDataPartition(learn$target, p = 0.8, list = FALSE)
+train_data <- learn[trainIndex, ]
+test_data <- learn[-trainIndex, ]
+
+# Ensure target variable is a factor
+train_data$target <- as.factor(train_data$target)
+test_data$target <- as.factor(test_data$target)
+
+# Train Random Forest Model
+set.seed(123)
+rf_model <- randomForest(target ~ ., data = train_data, ntree = 500, mtry = 5, importance = TRUE)
+
+# Evaluate Model Performance
+rf_pred <- predict(rf_model, test_data)
+rf_cm <- confusionMatrix(rf_pred, test_data$target)
+print("Random Forest Performance:")
+print(rf_cm)
+
+# Apply Model to New Data
+new_data <- as.data.table(vroom(here("Data - source", "project-10-files", "test_dataset.csv"), delim = ",", show_col_types = FALSE))
+new_data <- impute_median_mode(new_data, employment_vars)
+
+# Predict on New Data
+final_predictions <- predict(rf_model, new_data)
+write.csv(final_predictions, file = "final_predictions.csv", row.names = FALSE)
+print("Predictions saved to final_predictions.csv")
+```
+
+```{r}
+# Handle Class Imbalance with SMOTE using themis
+set.seed(123)
+trainIndex <- createDataPartition(learn$target, p = 0.8, list = FALSE)
+train_data <- learn[trainIndex, ]
+test_data <- learn[-trainIndex, ]
+
+# Ensure target variable is a factor
+train_data$target <- as.factor(train_data$target)
+
+# Apply SMOTE using themis in caret pipeline
+smote_recipe <- recipe(target ~ ., data = train_data) %>%
+  step_smote(target, over_ratio = 0.5)
+
+# Prepare the data with the recipe
+prep_smote <- prep(smote_recipe, training = train_data)
+smote_data <- bake(prep_smote, new_data = NULL)
+
+# Confirm Class Distribution After SMOTE
+print("Class Distribution After SMOTE:")
+print(table(smote_data$target))
+```
+
 # Test
 
-## Load Test Data
+### Load Test Data
 
 ```{r}
 test <- vroom(here("Data - source", "project-10-files", "test_dataset.csv"), delim = ",", show_col_types = FALSE)
@@ -271,7 +435,7 @@ test_retired_pension <- vroom(here("Data - source", "project-10-files", "test_da
 test_sports <- vroom(here("Data - source", "project-10-files", "test_dataset_sport.csv"), delim = ",", show_col_types = FALSE)
 ```
 
-## Combine Test Data
+### Combine Test Data
 
 ```{r}
 test <- test %>%
@@ -280,5 +444,45 @@ test <- test %>%
   left_join(test_retired_former, by = "PRIMARY_KEY") |>
   left_join(test_retired_jobs, by = "PRIMARY_KEY") |>
   left_join(test_retired_pension, by = "PRIMARY_KEY") |>
-  left_join(test_sports, by = "PRIMARY_KEY")
+  left_join(test_sports, by = "PRIMARY_KEY") |>
+  
+mutate(TYPE_CONTRACT = ifelse(is.na(TYPE_OF_CONTRACT.x), TYPE_OF_CONTRACT.y, TYPE_OF_CONTRACT.x)) |>
+  select(-TYPE_OF_CONTRACT.x, -TYPE_OF_CONTRACT.y) |>
+  
+  mutate(Working_hours = ifelse(is.na(Working_hours.x), Working_hours.y, Working_hours.x)) |>
+  select(-Working_hours.x, -Working_hours.y) |>
+  
+    mutate(Work_condition = ifelse(is.na(Work_condition.x), Work_condition.y, Work_condition.x)) |>
+  select(-Work_condition.x, -Work_condition.y) |>
+  
+  mutate(company_category = ifelse(is.na(company_category.x), company_category.y, company_category.x)) |>
+  select(-company_category.x, -company_category.y) |>
+  
+  mutate(ECO_SECT = ifelse(is.na(ECO_SECT.x), ECO_SECT.y, ECO_SECT.x)) |>
+  select(-ECO_SECT.x, -ECO_SECT.y) |>
+  
+  mutate(job_desc = ifelse(is.na(job_desc.x), job_desc.y, job_desc.x)) |>
+  select(-job_desc.x, -job_desc.y) |>
+  
+  mutate(employee_count = ifelse(is.na(employee_count.x), employee_count.y, employee_count.x)) %>%
+  select(-employee_count.x, -employee_count.y) |>
+  
+  mutate(Job_dep = ifelse(is.na(Job_dep.x), Job_dep.y, Job_dep.x)) |>
+  select(-Job_dep.x, -Job_dep.y) |>
+  
+  mutate(job_category = ifelse(is.na(job_category.x), job_category.y, job_category.x)) |>
+  select(-job_category.x, -job_category.y)
+```
+
+```{r}
+
+# Make predictions on the test set
+predictions <- predict(model, newdata = test)
+
+# If you have the true labels for the test set, evaluate performance
+# For example, if it's a classification problem:
+confusionMatrix(predictions, test_data$target) # Replace 'target' with actual target variable in test data
+
+# Save predictions to send to your professor
+write.csv(predictions, "predictions.csv", row.names = FALSE)
 ```
