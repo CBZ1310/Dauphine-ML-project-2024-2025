@@ -1159,15 +1159,15 @@ kable(na_percentage_by_act_sport, caption = "Percentage of Missing Values by Act
 
 ```
 
-## Used solution
+## Used solutions
 
-Basing our reflections on the descriptive statistics of the next sections, several decisions were maded :
+Basing our reflections on the descriptive statistics of the next sections, several decisions were maded:
 
 1.  Not using variable in the sport dataset : because of its high number of missing values and non clear pattern, the variable was put aside.
 
 2.  For work-related variable :
 
-    -   Fill yhe missing valjes with "Not applicable" for all non-numerical variables and"-1" for numerical values for the active status that are not either retiree or active worker
+    -   Fill the missing values with "Not applicable" for all non-numerical variables and"-1" for numerical values for the active status that are not either retiree or active worker
 
     ```{r}
     # (1) Define the list of work-related variables
