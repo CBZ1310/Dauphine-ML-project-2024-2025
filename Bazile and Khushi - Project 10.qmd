@@ -17,6 +17,7 @@ library(tidyr)
 library(data.table)
 library(stringr)
 library(knitr)
+library(recipes)
 library(missForest)
 
 
@@ -52,11 +53,11 @@ learn_df %>%  summarise_all(~ sum(is.na(.))) # No missing data
 # Test dataset
 ## Import data
 test_df <- read_csv("Data - source/project-10-files/test_dataset.csv")
-any(duplicated(learn_df$KEY_PRIMARY)) 
+any(duplicated(learn_df$PRIMARY_KEY)) 
 
 ##Check for NA
 test_df %>%  summarise_all(~ sum(is.na(.))) # No missing data
-any(duplicated(test_df$KEY_PRIMARY)) 
+any(duplicated(test_df$PRIMARY_KEY)) 
 ```
 
 The principal datasets, both from the learning and testing phases, do not contain missing values or duplicates. However, as indicated in the instructions, a large number of missing values exist when adding the additional data on retirement, sports, and jobs.
@@ -282,17 +283,7 @@ string_columns_summary %>%
   )
 ```
 
-We have 3 binary variables, studyig target and sex. We choose to transform sex into a binary variable
-
-```{r}
-learn_merged <- learn_merged %>%
-  mutate(sex = ifelse(sex == "Male", 1, 0))
-
-learn_merged <- learn_merged %>%
-  mutate(Studying = ifelse(Studying == "TRUE", 1, 0))
-```
-
-We also decided at this step of our work to transform the string values into factor.
+We decided at this step of our work to transform the string values into factor.
 
 ```{r}
 learn_merged <- learn_merged %>%
@@ -1211,11 +1202,16 @@ Basing our reflections on the descriptive statistics of the next sections, sever
 
 1.  Not using variable in the sport dataset : because of its high number of missing values and non clear pattern, the variable was put aside.
 
-2.  For work-related variable :
+```{r}
+learn_merged <- learn_merged %>%
+  select(-sports)
+```
+
+1.  For work-related variable :
 
     -   Fill the missing values with "Not applicable" for all non-numerical variables and"-1"
         -   for numerical values for the active status that are not either retiree or active worker
-        -   and, for active workers woreare self employed
+        -   and, for active workers wo are self employed
 
     ```{r}
     # List of work-related variables
@@ -1236,10 +1232,10 @@ Basing our reflections on the descriptive statistics of the next sections, sever
     # Transformation using a loop for self employed
     for (var in work_related_var) {
       learn_merged[[var]] <- ifelse(
-        is.na(learn_merged[[var]]) & !(learn_merged$emp_type %in% c("EMP2.1", "EMP2.2", "EMP2.3")) & is.numeric(learn_merged[[var]]), 
+        is.na(learn_merged[[var]]) & (learn_merged$emp_type %in% c("EMP2.1", "EMP2.2", "EMP2.3")) & is.numeric(learn_merged[[var]]), 
         -1,
         ifelse(
-          is.na(learn_merged[[var]]) & !(learn_merged$act %in% c("ACT2.1", "ACT1.1")) & !is.numeric(learn_merged[[var]]), 
+          is.na(learn_merged[[var]]) & (learn_merged$emp_type %in% c("EMP2.1", "EMP2.2", "EMP2.3")) & !is.numeric(learn_merged[[var]]), 
           "Not applicable", 
           learn_merged[[var]]))}
 
@@ -1250,15 +1246,9 @@ Basing our reflections on the descriptive statistics of the next sections, sever
 
     ```
 
-    -   
-
     -   And to impute missing values for the other
 
-        ```{r}
-
-        ```
-
-3.  For retirement related-variable :
+2.  For retirement related-variable :
 
     -   Fill the missing values for non-retired people with "Not applicable" (for non numeric value) or "-1" (for numerical one)
 
@@ -1287,19 +1277,8 @@ Basing our reflections on the descriptive statistics of the next sections, sever
 
 ```{r}
 
-#####################   Preparatory work    #####################
-
-# Exclude "target" and "sports" columns from imputation
-columns_to_impute <- setdiff(colnames(learn_merged), c("target", "sports"))
-
-# Prepare the dataset for imputation (convert character columns to factors)
-learn_merged <- learn_merged %>%
-  select(all_of(columns_to_impute)) %>%
-  mutate(across(where(is.character), as.factor),  # Convert character columns to factors
-    across(where(is.logical), as.factor)     # Convert logical columns to factors
-  )
-
-
+columns_to_impute <- names(learn_merged)[
+  colSums(is.na(learn_merged)) > 0]
 
 
 #####################   Reminder : Stats before imputation    #####################
@@ -1347,18 +1326,20 @@ after_imputation_summary %>%
 **Test with recipes 2**
 
 ```{r}
-# Créer une recette en précisant que `target` est la variable cible
-knn_recipe <- recipe(target ~ ., data = learn_merged) %>%
-  step_impute_knn(all_predictors(), neighbors = 5)  # Appliquer KNN aux prédicteurs uniquement
 
-# Préparer et appliquer la recette
-knn_prep <- prep(knn_recipe, training = learn_merged)
+my_recipe <- recipe(target ~ ., data = learn_merged) %>%
+  step_impute_bag(all_numeric_predictors()) %>%
+  step_impute_bag(all_nominal_predictors())
 
-# Imputer les valeurs manquantes
-learn_merged_imputed <- bake(knn_prep, new_data = NULL)
 
-# Vérifier les résultats
-summary(learn_merged_imputed)
+prep_it <- prep(my_recipe, training = learn_merged)
+
+
+learn_imputed <- bake(prep_it, new_data = learn_merged)
+
+# Checking the result
+after_imputation_summary <- learn_imputed %>%
+  summarise(across(all_of(columns_to_impute), ~ round(sum(is.na(.)) / n() * 100, 2)))
 
 ```
 
@@ -1406,8 +1387,11 @@ my_tree <- decision_tree(
   set_mode("classification") %>%
   set_engine("rpart")
 
+tree_workflow <- workflow() %>%
+  add_model(my_tree) %>%
+  add_recipe(cookbook)
 
-## Generate the grid
+
 
 my_grid <- expand.grid(
   cost_complexity =  c(0, 0.1, 0.01, 0.001, 0.0001), 
@@ -1425,7 +1409,7 @@ X <- setdiff(names(learn_merged), c("target"))
 
 model_formula <- as.formula(paste("target ~", paste(X, collapse = " + ")))
 
-my_tuned_tree <- my_tree %>% 
+my_tuned_tree <- tree_workflow %>% 
   tune_grid(model_formula,
             resamples = compound_v,
             grid = my_grid,
@@ -1460,10 +1444,9 @@ my_best_parameters <- my_tuned_tree %>%    select_best(metric = "accuracy")  kab
 ```
 
 ```{r}
-my_final_tree <- my_tree %>% 
-  finalize_model(my_best_parameters)
+my_final_tree_workflow <-  finalize_workflow(tree_workflow ,my_best_parameters)
 
-final_fit <- my_final_tree %>% last_fit(model_formula, data = learn_merged)
+final_fit <- my_final_tree_workflow %>% last_fit(model_formula, data = learn_merged)
 ```
 
 Confusion Matrices
@@ -1479,6 +1462,10 @@ amazonia <- rand_forest(
   min_n = tune()) %>%
   set_mode("classification") %>%
   set_engine("ranger")
+
+forest_workflow <- workflow() %>%
+  add_model(amazonia) %>%
+  add_recipe(cookbook)
 
 # Grid
 my_grid_rf <- expand.grid(
@@ -1510,11 +1497,10 @@ kable(best_rf_params, caption = "Parameters of the random forest model")
 
 ```{r}
 # Final model
-final_amazonia_model <- amazonia %>%
-  finalize_model(best_rf_params)
+final_amazonia_workflow <- finalize_workflow(best_rf_params)
 
-amazonia_fit <- final_amazonia_model %>%
-  fit(model_formula, data = learn_merged)
+amazonia_fit <- finalize_workflow %>%
+  fit(final_amazonia_workflow, data = learn_merged)
 ```
 
 Concusion matrices
