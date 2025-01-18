@@ -361,7 +361,7 @@ percent_E <- (n_E / nrow(learn_merged)) * 100
 ratio_A_E <- round(n_A / n_E, 1)
 ```
 
-The target variable has a higher proportion of value "A" compared to "E" in the dataset. **`r n_A`** individual has A for tager which represents **`r round(percent_A, 2)`%** of the total rows. Paralelly, **`r round(percent_E, 2)`%** of the individuals has E for target (**`r n_E`** rows).
+The target variable has a higher proportion of the value "A" compared to "E" in the dataset. **`r n_A`** individuals having "A" as target value represents **`r round(percent_A, 2)`%** of the total rows while "E" individuals represents **`r round(percent_E, 2)`%** of the observations (**`r n_E`** rows). It is to note that because this imbalance, we will use a stratification method during the resampling. However, the imbalance is not severe enough to require additional techniques such as up-sampling or down-sampling.
 
 ```{r}
 ## Percent (%)
@@ -900,17 +900,24 @@ na_percentage_per_column <- learn_merged %>%
 na_percentage_per_column
 ```
 
-Using the library "DateExplorer", we can visualize the result above.
+As a complement, we visualize these results in the graphic below. Important heterogeneity exist between variables regarding missing values. If some variables are well filled, notably the one of the main csv 'learn_dataset", information from over csv are more sparsely filled.
 
 ```{r}
-plot_missing(learn_merged) 
+miss_learn <- gg_miss_var(learn, show_pct = TRUE) +
+  theme_minimal() +
+  labs(title = "Percentage of Missing Values by Variable")
+
+miss_learn
 ```
+
+Using the library "DateExplorer", we look at the percentage of missing values looking only variable with at least one missing value.
 
 ```{r}
 
 learn_merged_with_Na <- learn_merged[, colSums(is.na(learn_merged)) > 1]
 
-plot_missing(learn_merged_with_Na)
+plot_missing(learn_merged_with_Na)+
+  labs(title="Percentage of missing value for columns where NA>1")
 ```
 
 #### Missing values regarding employment variables
