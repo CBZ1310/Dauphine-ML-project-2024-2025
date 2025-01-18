@@ -80,12 +80,12 @@ learn_sport <- read_csv("Data - source/project-10-files/learn_dataset_sport.csv"
 
 # Chekcing for duplicate
  
-any(duplicated(learn_emp_type$KEY_PRIMARY))
-any(duplicated(learn_job$KEY_PRIMARY))
-any(duplicated(learn_retired_former$KEY_PRIMARY))
-any(duplicated(learn_retired_jobs$KEY_PRIMARY))
-any(duplicated(learn_retired_pension$KEY_PRIMARY))
-any(duplicated(learn_sport$KEY_PRIMARY))
+any(duplicated(learn_emp_type$PRIMARY_KEY))
+any(duplicated(learn_job$PRIMARY_KEY))
+any(duplicated(learn_retired_former$PRIMARY_KEY))
+any(duplicated(learn_retired_jobs$PRIMARY_KEY))
+any(duplicated(learn_retired_pension$PRIMARY_KEY))
+any(duplicated(learn_sport$PRIMARY_KEY))
 # No duplicates found
 
 
@@ -93,27 +93,25 @@ any(duplicated(learn_sport$KEY_PRIMARY))
 
 ```
 
+Before merging the learn datasets with one another (and do similarly the same thing for the test ones), we changed the names of the "retired_jobs" datasets by putting the prefix "LAST\_" before several columns. The goal was to avoid confusion with columns with the same names in the "job" dataset that describes active job.
+
 ```{r Create_the_dataframe_learning_data_part_two}
+# Change of names of person in learn_retired_jobs
+learn_retired_jobs <- learn_retired_jobs %>%
+  rename_with(
+    .fn = ~ paste0("LAST_", .x),                 
+    .cols = -c("PRIMARY_KEY", "LAST_DEP"))
+
+
+
 # Merger with left join
-learn_merged <- learn_df %>%
+learn_merged <- learn_df %>% 
   left_join(learn_emp_type, by = "PRIMARY_KEY") %>%
   left_join(learn_job, by = "PRIMARY_KEY") %>%
   left_join(learn_retired_former, by = "PRIMARY_KEY") %>%
   left_join(learn_retired_jobs, by = "PRIMARY_KEY") %>%
   left_join(learn_retired_pension, by = "PRIMARY_KEY") %>%
-  left_join(learn_sport, by = "PRIMARY_KEY") %>% 
-
-   mutate(TYPE_CONTRACT = ifelse(is.na(TYPE_OF_CONTRACT.x), TYPE_OF_CONTRACT.y, TYPE_OF_CONTRACT.x),
-         Working_hours = ifelse(is.na(Working_hours.x), Working_hours.y, Working_hours.x),
-         Work_condition = ifelse(is.na(Work_condition.x), Work_condition.y, Work_condition.x),
-         company_category = ifelse(is.na(company_category.x), company_category.y, company_category.x),
-         ECO_SECT = ifelse(is.na(ECO_SECT.x), ECO_SECT.y, ECO_SECT.x),
-         job_desc = ifelse(is.na(job_desc.x), job_desc.y, job_desc.x),
-         employee_count = ifelse(is.na(employee_count.x), employee_count.y, employee_count.x),
-         Job_dep = ifelse(is.na(Job_dep.x), Job_dep.y, Job_dep.x),
-         job_category = ifelse(is.na(job_category.x), job_category.y, job_category.x)) %>%
-  
-  select(-ends_with(".x"), -ends_with(".y"))
+  left_join(learn_sport, by = "PRIMARY_KEY")
 ```
 
 ```{r Create_the_dataframe_test_data_part_one}
@@ -134,18 +132,21 @@ test_sport <- read_csv("Data - source/project-10-files/test_dataset_sport.csv")
 
 # Chekcing for duplicate
  
-any(duplicated(test_emp_type$KEY_PRIMARY))
-any(duplicated(test_job$KEY_PRIMARY))
-any(duplicated(test_retired_former$KEY_PRIMARY))
-any(duplicated(test_retired_jobs$KEY_PRIMARY))
-any(duplicated(test_retired_pension$KEY_PRIMARY))
-any(duplicated(test_sport$KEY_PRIMARY))
+any(duplicated(test_emp_type$PRIMARY_KEY))
+any(duplicated(test_job$PRIMARY_KEY))
+any(duplicated(test_retired_former$PRIMARY_KEY))
+any(duplicated(test_retired_jobs$PRIMARY_KEY))
+any(duplicated(test_retired_pension$PRIMARY_KEY))
+any(duplicated(test_sport$PRIMARY_KEY))
 # No duplicates found
 
 ```
 
 ```{r Create_the_dataframe_test_data_part_two}
-
+test_retired_jobs <- test_retired_jobs %>%
+  rename_with(
+    .fn = ~ paste0("LAST_", .x),                 
+    .cols = -c("PRIMARY_KEY", "LAST_DEP"))
 # Merger with left join
 test_merged <- test_df %>%
   left_join(test_emp_type, by = "PRIMARY_KEY") %>%
@@ -283,7 +284,17 @@ string_columns_summary %>%
   )
 ```
 
-We decided at this step of our work to transform the string values into factor.
+The variable INSEE and "Nom de la commune" with the different code INSEE and name of towns has a too large number of potential variable. We therefore decided to drop it.
+
+```{r}
+learn_merged <- learn_merged %>%
+  select(-INSEE, -`Nom de la commune`)
+
+test_merged <- test_merged %>%
+  select(-INSEE, -`Nom de la commune`)
+```
+
+We then decided at this step of our work to transform the string values into factor.
 
 ```{r}
 learn_merged <- learn_merged %>%
@@ -905,7 +916,7 @@ plot_missing(learn_merged_with_Na)
 
 Our first question was to understand whether they are pattern in the messing values. Among several way to deal with missing values Kumar G.R. (2024) quote the use of "Domain-specific knowledge". Similarly, we look at natural relationship between missing values and variable in the main dataset.
 
-The table below count the percentage of missing values in variables linked to employment by activity status. Several missing cells seem logical corresponding to status where people does not work (housewives, retirees, unemployed and inactive people. "EMP_TYPE" have for example no missing values for active workers but missing values for other active status. The missing value in this case seems to correspond to the fact that "naturally" no data is expected for these subpopulations.
+The table below count the percentage of missing values in variables linked to employment by activity status. Several missing cells seem logical corresponding to status where people does not work. The missing value in this case seems to correspond to the fact that "naturally" no data is expected for these subpopulations.
 
 ```{r}
 na_percentage_by_act <- learn_merged_uncoded %>%
@@ -920,7 +931,7 @@ na_percentage_by_act <- learn_merged_uncoded %>%
     Company_category = round((sum(is.na(company_category)) / n()) * 100, 0),
     Work_condition = round((sum(is.na(Work_condition)) / n()) * 100, 0),
     Working_hours = round((sum(is.na(Working_hours)) / n()) * 100, 0),
-    TYPE_CONTRACT = round((sum(is.na(TYPE_CONTRACT)) / n()) * 100, 0)
+    TYPE_OF_CONTRACT = round((sum(is.na(TYPE_OF_CONTRACT)) / n()) * 100, 0)
   ) %>%
   arrange(desc(Remuneration))
 
@@ -957,8 +968,8 @@ active_workers_na_percentage <- active_workers_data %>%
     Work_condition_sep_not_missing = round(sum(!is.na(Work_condition)) / n() * 100, 0),
     Working_hours_sep_missing = round(sum(is.na(Working_hours)) / n() * 100, 0),
     Working_hours_sep_not_missing = round(sum(!is.na(Working_hours)) / n() * 100, 0),
-    TYPE_CONTRACT_sep_missing = round(sum(is.na(TYPE_CONTRACT)) / n() * 100, 0),
-    TYPE_CONTRACT_sep_not_missing = round(sum(!is.na(TYPE_CONTRACT)) / n() * 100, 0)
+    TYPE_OF_CONTRACT_sep_missing = round(sum(is.na(TYPE_OF_CONTRACT)) / n() * 100, 0),
+    TYPE_OF_CONTRACT_sep_not_missing = round(sum(!is.na(TYPE_OF_CONTRACT)) / n() * 100, 0)
   )
 
 # Transposing
@@ -1001,7 +1012,7 @@ aw_na_by_emptype_percent <- active_workers_data %>%
     Company_category = round(sum(is.na(company_category)) / n() * 100, 0),
     Work_condition = round(sum(is.na(Work_condition)) / n() * 100, 0),
     Working_hours = round(sum(is.na(Working_hours)) / n() * 100, 0),
-    TYPE_CONTRACT = round(sum(is.na(TYPE_CONTRACT)) / n() * 100, 0)
+    TYPE_OF_CONTRACT = round(sum(is.na(TYPE_OF_CONTRACT)) / n() * 100, 0)
   ) %>% 
   arrange(desc(Remuneration))
 
@@ -1029,7 +1040,7 @@ aw_na_by_job_percent <- active_workers_data_filtered %>%
     Company_category = round(sum(is.na(company_category)) / n() * 100, 0),
     Work_condition = round(sum(is.na(Work_condition)) / n() * 100, 0),
     Working_hours = round(sum(is.na(Working_hours)) / n() * 100, 0),
-    TYPE_CONTRACT = round(sum(is.na(TYPE_CONTRACT)) / n() * 100, 0)
+    TYPE_OF_CONTRACT = round(sum(is.na(TYPE_OF_CONTRACT)) / n() * 100, 0)
   ) %>% 
   arrange(desc(Remuneration))
 
@@ -1051,7 +1062,7 @@ aw_na_by_job_n <- active_workers_data_filtered %>%
     Company_category = round(sum(is.na(company_category)), 0),
     Work_condition = round(sum(is.na(Work_condition)), 0),
     Working_hours = round(sum(is.na(Working_hours)), 0),
-    TYPE_CONTRACT = round(sum(is.na(TYPE_CONTRACT)), 0)
+    TYPE_OF_CONTRACT = round(sum(is.na(TYPE_OF_CONTRACT)), 0)
   )
 
 kable(aw_na_by_job_n, caption = "Number of Missing Values by Job 42 Translated for ACT1.1")
@@ -1070,81 +1081,97 @@ learn_merged_with_Na <- learn_merged[, colSums(is.na(learn_merged)) > 1]
 plot_missing(learn_merged_with_Na)
 ```
 
-To check this hypothesis, we look at the percentage of missing values by activity status.
+As we can see on the table below, our hypothesis seems true. the vast majority of missing value concern non-retired people.
 
 ```{r}
+# List of columns that we want to observe
+retired_cols <- c(
+ setdiff(grep("^LAST_", names(learn_merged_uncoded), value = TRUE),
+    "LAST_JOB_42_translated"), 
+  "last_emp_type", 
+  "retirement_age", 
+  "Retirement_pay")
+
 # Total number of NA per column
 total_na_per_column <- learn_merged_uncoded %>%
   summarise(
-    Total_LAST_JOB_42 = sum(is.na(LAST_JOB_42)),
-    Total_last_emp_type = sum(is.na(last_emp_type)),
-    Total_retirement_age = sum(is.na(retirement_age)),
-    Total_Retirement_pay = sum(is.na(Retirement_pay))
-  )
+    across(
+      .cols = all_of(retired_cols), 
+      .fns  = ~ sum(is.na(.x)),
+      .names = "Total_{.col}"))
 
-# Our final table
+# % of NA per act
 na_percentage_by_act_ret <- learn_merged_uncoded %>%
   group_by(act_translated) %>%
   summarise(
-    LAST_JOB_42 = round(sum(is.na(LAST_JOB_42)) / total_na_per_column$Total_LAST_JOB_42 * 100, 2),
-    last_emp_type = round(sum(is.na(last_emp_type)) / total_na_per_column$Total_last_emp_type * 100, 2),
-    retirement_age = round(sum(is.na(retirement_age)) / total_na_per_column$Total_retirement_age * 100, 2),
-    Retirement_pay = round(sum(is.na(Retirement_pay)) / total_na_per_column$Total_Retirement_pay * 100, 2)
-  ) %>%
+    across(
+      .cols = all_of(retired_cols),
+      .fns = ~ round(100 * sum(is.na(.x)) / total_na_per_column[[ paste0("Total_", cur_column()) ]], 2),
+      .names = "{.col}")) %>%
   arrange(desc(LAST_JOB_42))
-
 
 kable(na_percentage_by_act_ret, caption = "Percentage of Missing Values by Activity Status (Percentage relative to the column)")
 
 
 ```
 
-By precaution, we wanted to check whether there were retirement data for active workers. However, the sanity check did not find any.
+By precaution, we also wanted to check whether there were retirement data for active workers. However, did not find any.
 
 ```{r}
-# Same work for non missing values
+# Same code for non missing values
+
 
 # Total number of non-NA per column
 total_non_na_per_column <- learn_merged_uncoded %>%
   summarise(
-    Total_LAST_JOB_42 = sum(!is.na(LAST_JOB_42)),
-    Total_last_emp_type = sum(!is.na(last_emp_type)),
-    Total_retirement_age = sum(!is.na(retirement_age)),
-    Total_Retirement_pay = sum(!is.na(Retirement_pay))
-  )
+    across(
+      .cols = all_of(retired_cols),
+      .fns  = ~ sum(!is.na(.x)),
+      .names = "Total_{.col}"))
 
 # Our final table with percentages of non-missing values
 non_na_percentage_by_act_ret <- learn_merged_uncoded %>%
   group_by(act_translated) %>%
   summarise(
-    LAST_JOB_42 = round(sum(!is.na(LAST_JOB_42)) / total_non_na_per_column$Total_LAST_JOB_42 * 100, 2),
-    last_emp_type = round(sum(!is.na(last_emp_type)) / total_non_na_per_column$Total_last_emp_type * 100, 2),
-    retirement_age = round(sum(!is.na(retirement_age)) / total_non_na_per_column$Total_retirement_age * 100, 2),
-    Retirement_pay = round(sum(!is.na(Retirement_pay)) / total_non_na_per_column$Total_Retirement_pay * 100, 2)
+    across(
+      .cols = all_of(retired_cols),
+      .fns = ~ round(
+        100 * sum(!is.na(.x)) / total_non_na_per_column[[paste0("Total_", cur_column())]],
+        2
+      ),
+      .names = "{.col}"
+    )
   ) %>%
+  # Exemple : tri par la colonne LAST_JOB_42 pour illustrer
   arrange(desc(LAST_JOB_42))
 
 # Display the table with kable
-kable(non_na_percentage_by_act_ret, caption = "Percentage of Non-Missing Values by Activity Status (Percentage relative to the column)")
+kable(
+  non_na_percentage_by_act_ret, 
+  caption = "Percentage of Non-Missing Values by Activity Status (Percentage relative to the column)"
+)
+
 
 ```
 
-Only 2% of the retired individual has missing values for retirement-related data. One variable is an exception : the retirement pay.
+The table below give us the percent of missing values for retired people. If some values are well-filled, data linked to past employment and retirement pay are more proned to missing values
 
 ```{r}
 #
 na_percentage_by_act_value <- learn_merged_uncoded %>%
+  filter(act == "ACT2.1") %>%
   group_by(act_translated) %>%
   summarise(
-    LAST_JOB_42 = round(sum(is.na(LAST_JOB_42)) / n() * 100, 2),
-    last_emp_type = round(sum(is.na(last_emp_type)) / n() * 100, 2),
-    retirement_age = round(sum(is.na(retirement_age)) / n() * 100, 2),
-    Retirement_pay = round(sum(is.na(Retirement_pay)) / n() * 100, 2)
-  ) %>%
-  arrange(desc(LAST_JOB_42))  
+    across(
+      .cols = all_of(retired_cols),
+      .fns  = ~ round( sum(is.na(.x)) / n() * 100, 2 ),
+      .names = "{.col}")) %>%
+   pivot_longer(cols = all_of(retired_cols),names_to = "Variable",    values_to = "Percentage") %>%
+   ungroup() %>% 
+  select(-act_translated) %>% 
+  arrange((Percentage))
 
-
-kable(na_percentage_by_act_value, caption = "Percentage of Missing Values  for Each Activity Status")
+kable(na_percentage_by_act_value, caption = "Percentage of Missing Values  for retired people")
 
 ```
 
@@ -1198,7 +1225,7 @@ kable(na_percentage_by_act_sport, caption = "Percentage of Missing Values by Act
 
 ## Used solutions
 
-Basing our reflections on the descriptive statistics of the next sections, several decisions were maded:
+Basing our reflections on the descriptive statistics of the next sections, several decisions were made:
 
 1.  Not using variable in the sport dataset : because of its high number of missing values and non clear pattern, the variable was put aside.
 
@@ -1210,22 +1237,22 @@ learn_merged <- learn_merged %>%
 1.  For work-related variable :
 
     -   Fill the missing values with "Not applicable" for all non-numerical variables and"-1"
-        -   for numerical values for the active status that are not either retiree or active worker
+        -   for numerical values for the active status that are not ctive worker
         -   and, for active workers wo are self employed
 
     ```{r}
     # List of work-related variables
     work_related_var <- c("remuneration", "ECO_SECT", "emp_type", "job_category",
                           "Job_dep", "employee_count", "company_category",
-                          "Work_condition", "Working_hours", "TYPE_CONTRACT")
+                          "Work_condition", "Working_hours", "TYPE_OF_CONTRACT")
 
     # Transformation using a loop for active status
     for (var in work_related_var) {
       learn_merged[[var]] <- ifelse(
-        is.na(learn_merged[[var]]) & !(learn_merged$act %in% c("ACT2.1", "ACT1.1")) & is.numeric(learn_merged[[var]]), 
+        is.na(learn_merged[[var]]) & !(learn_merged$act %in% c("ACT1.1")) & is.numeric(learn_merged[[var]]), 
         -1,
         ifelse(
-          is.na(learn_merged[[var]]) & !(learn_merged$act %in% c("ACT2.1", "ACT1.1")) & !is.numeric(learn_merged[[var]]), 
+          is.na(learn_merged[[var]]) & !(learn_merged$act %in% c("ACT1.1")) & !is.numeric(learn_merged[[var]]), 
           "Not applicable", 
           learn_merged[[var]]))}
 
@@ -1243,7 +1270,27 @@ learn_merged <- learn_merged %>%
       summarise(across(all_of(work_related_var), ~ sum(is.na(.)))) %>%
       knitr::kable(caption = "Number of Missing Values after Transformation")
 
+    # Codes for the test set
 
+    ### Transformation using a loop for active status
+    for (var in work_related_var) {
+      test_merged[[var]] <- ifelse(
+        is.na(test_merged[[var]]) & !(test_merged$act %in% c("ACT1.1")) & is.numeric(test_merged[[var]]), 
+        -1,
+        ifelse(
+          is.na(test_merged[[var]]) & !(test_merged$act %in% c("ACT1.1")) & !is.numeric(test_merged[[var]]), 
+          "Not applicable", 
+          test_merged[[var]]))}
+
+    ### Transformation using a loop for self employed
+    for (var in work_related_var) {
+      test_merged[[var]] <- ifelse(
+        is.na(test_merged[[var]]) & (test_merged$emp_type %in% c("EMP2.1", "EMP2.2", "EMP2.3")) & is.numeric(test_merged[[var]]), 
+        -1,
+        ifelse(
+          is.na(test_merged[[var]]) & (test_merged$emp_type %in% c("EMP2.1", "EMP2.2", "EMP2.3")) & !is.numeric(test_merged[[var]]), 
+          "Not applicable", 
+          test_merged[[var]]))}
     ```
 
     -   And to impute missing values for the other
@@ -1253,10 +1300,10 @@ learn_merged <- learn_merged %>%
     -   Fill the missing values for non-retired people with "Not applicable" (for non numeric value) or "-1" (for numerical one)
 
     ```{r}
-    # (1) Define the list of retirement-related variables
-    retirement_related_var <- c("LAST_JOB_42", "last_emp_type", "retirement_age", "Retirement_pay")
+    # List of retirement-related variables
+    retirement_related_var <- c(grep("^LAST_", names(learn_merged), value = TRUE),  "last_emp_type", "retirement_age", "Retirement_pay")
 
-    # (2) Apply the transformation only for missing values when act is NOT "ACT2.1"
+    # Apply the transformation only for missing values when act is NOT "ACT2.1"
     for (var in retirement_related_var) {
       learn_merged[[var]] <- ifelse(
         is.na(learn_merged[[var]]) & learn_merged$act != "ACT2.1" & is.numeric(learn_merged[[var]]),
@@ -1266,11 +1313,22 @@ learn_merged <- learn_merged %>%
           "Not applicable",
           learn_merged[[var]]))}
 
-    # (3) Visualize the percentage of missing values after transformation
+    # Visualize the percentage of missing values after transformation
 
     learn_merged %>% group_by(act) %>% 
       summarise(across(all_of(retirement_related_var), ~ sum(is.na(.)))) %>%
       knitr::kable(caption = "Number of Missing Values after Transformation")
+
+
+    # Code for the test set
+    for (var in retirement_related_var) {
+      test_merged[[var]] <- ifelse(
+        is.na(test_merged[[var]]) & test_merged$act != "ACT2.1" & is.numeric(test_merged[[var]]),
+        -1,
+        ifelse(
+          is.na(test_merged[[var]]) & test_merged$act != "ACT2.1" & !is.numeric(test_merged[[var]]),
+          "Not applicable",
+          test_merged[[var]]))}
     ```
 
     -   For retired people :impute the missing values
@@ -1299,42 +1357,20 @@ before_imputation_summary %>%
 
 ```
 
-**Test with recipes**
-
-```{r}
-
-
-### Test with recipe
-
-lasagna <- recipe(target ~ ., data = learn_merged)
-knn_step <- lasagnaa %>% step_impute_knn(all(predictors()))
-
-knn_step
-
-
-
-
-####################   Post - Imputation Summary  ##############################
-
-# Display a summary table of missing values after imputation
-after_imputation_summary %>%
-  t() %>% 
-  as.data.frame() %>%
-  rename(Percentage = V1) %>%
-  kable(caption = "Percentage of Missing Values After Imputation for Each Variable")
-
-```
+NB : The imputation and machine learning model excluding primary key of the work.
 
 **Test with recipes 2**
 
 ```{r}
 
-my_recipe <- recipe(target ~ ., data = learn_merged) %>%
-  step_impute_bag(all_numeric_predictors()) %>%
-  step_impute_bag(all_nominal_predictors())
+lasgana <- recipe(target ~ ., data = learn_merged) %>%
+  update_role(PRIMARY_KEY, new_role = "ID") %>%
+  step_impute_median(all_numeric_predictors()) %>%
+  step_impute_mode(all_nominal_predictors())  %>%
+  step_normalize(all_numeric_predictors())
 
 
-prep_it <- prep(my_recipe, training = learn_merged)
+prep_it <- prep(lasgana, training = learn_merged)
 
 
 learn_imputed <- bake(prep_it, new_data = learn_merged)
@@ -1343,26 +1379,6 @@ learn_imputed <- bake(prep_it, new_data = learn_merged)
 after_imputation_summary <- learn_imputed %>%
   summarise(across(all_of(columns_to_impute), ~ round(sum(is.na(.)) / n() * 100, 2)))
 
-```
-
-**Test with misforest**
-
-Misforest is described as a nonparametric solution wihich is fitted to impute missing values with mixed-type data
-
-```{r}
-
-#############################       Imputation        ##############################
-# **Perform Random Forest-based imputation with missForest**
-imputed_test <- missForest(learn_merged, maxiter = 10, ntree = 100)
-
-####################   Post - Imputation Summary  ##############################
-after_imputation_summary <- learn_merged %>%
-  summarise(across(all_of(columns_to_impute), ~ round(sum(is.na(.)) / n() * 100, 2)))
-# Display a summary table of missing values after imputation
-after_imputation_summary %>%
-  t() %>%  # Transpose to show variables as rows
-  as.data.frame() %>%
-  kable(caption = "Percentage of Missing Values After Imputation for Each Variable")
 ```
 
 ```         
@@ -1374,6 +1390,29 @@ One hot encoding
 
 ```{r}
 # Pre-processing : Hot encoding
+```
+
+## Linear model with a logistic regression
+
+```{r}
+logit_m <- logistic_reg() %>%
+  set_engine("glm") %>%
+  set_mode("classification")
+
+linear_workflow <- workflow() %>%
+  add_recipe(rec) %>%
+  add_model(logit_m)
+
+compound_v <- vfold_cv(learn_merged, v = 5, strata = target)
+
+logit_result <- fit_resamples(
+  wf_logreg,
+  resamples = cv_folds,
+  metrics = metric_set(accuracy, roc_auc))
+
+collect_metrics(res_logreg)
+
+final_logreg_fit <- wf_logreg %>% fit(data = learn_merged)
 ```
 
 ## Decision Tree
@@ -1391,7 +1430,7 @@ my_tree <- decision_tree(
 
 tree_workflow <- workflow() %>%
   add_model(my_tree) %>%
-  add_recipe(cookbook)
+  add_recipe(lasgana)
 
 
 
@@ -1407,7 +1446,7 @@ compound_v <- vfold_cv(learn_merged, v = 5, strata = target)
 ## Using tune_grid on the tree
 
 
-X <- setdiff(names(learn_merged), c("target"))
+X <- setdiff(names(learn_merged), c("target", "PRIMARY_KEY"))
 
 model_formula <- as.formula(paste("target ~", paste(X, collapse = " + ")))
 
@@ -1453,6 +1492,16 @@ final_fit <- my_final_tree_workflow %>% last_fit(model_formula, data = learn_mer
 
 Confusion Matrices
 
+```{r}
+train_predictions %>% my_final_tree_workflow %>%
+  predict(new_data = learn_merged) %>%
+  bind_cols(train_data %>% select(target))
+
+# Compute the confusion matrix for the training set
+train_conf_matrix <- train_predictions %>%
+  conf_mat(truth = target, estimate = .pred_class)
+```
+
 ## Random Forest
 
 ```{r}
@@ -1460,20 +1509,22 @@ Confusion Matrices
 
 amazonia <- rand_forest(
   mtry = tune(),
-  trees = tune(),
+  trees = 500,
   min_n = tune()) %>%
   set_mode("classification") %>%
   set_engine("ranger")
 
-forest_workflow <- workflow() %>%
-  add_model(amazonia) %>%
-  add_recipe(cookbook)
-
 # Grid
 my_grid_rf <- expand.grid(
   mtry = c(1L, 3L, 5L, 7L, 9L, 12L,15L), 
-  min_n = c(2L, 10L, 50L, 100L),
-  trees = c(100L, 200L,300L))
+  min_n = c(2L, 10L, 50L, 100L))
+
+# Workflow
+forest_workflow <- workflow() %>%
+  add_model(amazonia) %>%
+  add_recipe(lasgana)
+
+
 
 # Cv fold
 homelander <- vfold_cv(learn_merged, v = 5, strata = target)
@@ -1499,10 +1550,11 @@ kable(best_rf_params, caption = "Parameters of the random forest model")
 
 ```{r}
 # Final model
-final_amazonia_workflow <- finalize_workflow(best_rf_params)
+final_amazonia_workflow <- finalize_workflow(forest_workflow, best_rf_params)
 
-amazonia_fit <- finalize_workflow %>%
-  fit(final_amazonia_workflow, data = learn_merged)
+amazonia_fit <- final_amazonia_workflow %>%
+  fit(data = learn_merged)
+
 ```
 
 Concusion matrices
@@ -1516,38 +1568,13 @@ train_predictions_rf <- amazonia_fit %>%
 train_conf_matrix_rf <- train_predictions_rf %>%
   conf_mat(truth = target, estimate = .pred_class)
 
-# Predictions on test set
-test_predictions_rf <- amazonia_fit %>%
-  predict(new_data = test_data_rf) %>%
-  bind_cols(test_data_rf %>% select(target))
-
-test_conf_matrix_rf <- test_predictions_rf %>%
-  conf_mat(truth = target, estimate = .pred_class)
-
-```
-
-```{r}
 # Heatmap for training set
 train_matrix_rf <- autoplot(train_conf_matrix_rf, type = "heatmap") +
   scale_fill_viridis_c(option = "plasma") +
-  labs(title = "Panel A: Training Set (Random Forest)") +
+  labs(title = "Training Set (Random Forest)") +
   theme(plot.title = element_text(hjust = 0.5))
 
-# Heatmap for test set
-test_matrix_rf <- autoplot(test_conf_matrix_rf, type = "heatmap") +
-  scale_fill_viridis_c(option = "plasma") +
-  labs(title = "Panel B: Test Set (Random Forest)") +
-  theme(plot.title = element_text(hjust = 0.5))
-
-# Combine the two heatmaps
-fusion_rf <- (train_matrix_rf | test_matrix_rf) +
-  plot_annotation(
-    title = "Figure 5: Confusion Matrices for Training and Test Sets (Random Forest)",
-    theme = theme(plot.title = element_text(hjust = 0.5)))
-
-# Display the combined heatmap
-print(fusion_rf)
-
+print(train_matrix_rf)
 ```
 
 ```{r}
