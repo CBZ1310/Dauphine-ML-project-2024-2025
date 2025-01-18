@@ -26,6 +26,7 @@ library(missForest)
 library(ggplot2)
 library(scales)
 library(plotly)
+library(naniar) 
 library(DataExplorer)
 library(viridis)
 
@@ -1376,13 +1377,13 @@ NB : The imputation and machine learning model excluding primary key of the work
 
 ```{r}
 
-lasgana <- recipe(target ~ ., data = learn_merged) %>%
+lasagna <- recipe(target ~ ., data = learn_merged) %>%
   update_role(PRIMARY_KEY, new_role = "ID") %>%
   step_impute_median(all_numeric_predictors()) %>%
   step_impute_mode(all_nominal_predictors()) 
 
 
-prep_it <- prep(lasgana, training = learn_merged)
+prep_it <- prep(lasagna, training = learn_merged)
 
 
 learn_imputed <- bake(prep_it, new_data = learn_merged)
@@ -1412,7 +1413,7 @@ logit_m <- logistic_reg() %>%
   set_mode("classification")
 
 linear_workflow <- workflow() %>%
-  add_recipe(rec) %>%
+  add_recipe(lasagna) %>%
   add_model(logit_m)
 
 compound_v <- vfold_cv(learn_merged, v = 5, strata = target)
@@ -1442,7 +1443,7 @@ my_tree <- decision_tree(
 
 tree_workflow <- workflow() %>%
   add_model(my_tree) %>%
-  add_recipe(lasgana)
+  add_recipe(lasagna)
 
 
 
@@ -1530,7 +1531,7 @@ my_grid_rf <- expand.grid(
 # Workflow
 forest_workflow <- workflow() %>%
   add_model(amazonia) %>%
-  add_recipe(lasgana)
+  add_recipe(lasagna)
 
 
 
