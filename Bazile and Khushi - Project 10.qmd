@@ -1410,18 +1410,18 @@ my_tree <- decision_tree(
 ## Generate the grid
 
 my_grid <- expand.grid(
-  cost_complexity = c(0, 0.1, 0.01, 0.001, 0.0001), 
-  min_n = c(2L, 7L, 12L, 24L, 48L, 84L, 100L),                
-  tree_depth = c(2L, 3L, 4L, 5L, 7L, 10L, 15L))
+  cost_complexity =  c(0, 0.1, 0.01, 0.001, 0.0001), 
+  min_n =  c(2L, 10L, 50L, 100L, 150L, 200L),                
+  tree_depth = c(2L,4L, 5L, 7L, 10L, 15L))
 
 ## Re-sampling
 set.seed(12)
-compound_v <- vfold_cv(DATA_A_AJOUTER, v = 5, strata = target)
+compound_v <- vfold_cv(learn_merged, v = 5, strata = target)
 
 ## Using tune_grid on the tree
 
 
-X <- setdiff(names(DATA_A_AJOUTER), c("target", "sport"))
+X <- setdiff(names(learn_merged), c("target"))
 
 model_formula <- as.formula(paste("target ~", paste(X, collapse = " + ")))
 
@@ -1463,7 +1463,7 @@ my_best_parameters <- my_tuned_tree %>%    select_best(metric = "accuracy")  kab
 my_final_tree <- my_tree %>% 
   finalize_model(my_best_parameters)
 
-final_fit <- my_final_tree %>% last_fit(model_formula, split = splitted_data)
+final_fit <- my_final_tree %>% last_fit(model_formula, data = learn_merged)
 ```
 
 Confusion Matrices
@@ -1483,11 +1483,11 @@ amazonia <- rand_forest(
 # Grid
 my_grid_rf <- expand.grid(
   mtry = c(1L, 3L, 5L, 7L, 9L, 12L,15L), 
-  min_n = c(2L, 7L, 12L, 24L, 36L, 48L),
+  min_n = c(2L, 10L, 50L, 100L),
   trees = c(100L, 200L,300L))
 
 # Cv fold
-homelander <- vfold_cv(DATA_A_AJOUTER, v = 5, strata = target)
+homelander <- vfold_cv(learn_merged, v = 5, strata = target)
 
 amazonia_tuned <- tune_grid(
   amazonia,
@@ -1505,7 +1505,7 @@ characteristics of the random forest
 
 ```{r}
 print(best_rf_params)
-kable(best_rf_params, caption = "Table 4. Parameters of the random forest model")
+kable(best_rf_params, caption = "Parameters of the random forest model")
 ```
 
 ```{r}
@@ -1514,7 +1514,7 @@ final_amazonia_model <- amazonia %>%
   finalize_model(best_rf_params)
 
 amazonia_fit <- final_amazonia_model %>%
-  fit(model_formula, data = train_data_rf)
+  fit(model_formula, data = learn_merged)
 ```
 
 Concusion matrices
@@ -1522,8 +1522,8 @@ Concusion matrices
 ```{r}
 # Predictions on training set
 train_predictions_rf <- amazonia_fit %>%
-  predict(new_data = train_data_rf) %>%
-  bind_cols(train_data_rf %>% select(target))
+  predict(new_data = learn_merged) %>%
+  bind_cols(learn_merged %>% select(target))
 
 train_conf_matrix_rf <- train_predictions_rf %>%
   conf_mat(truth = target, estimate = .pred_class)
