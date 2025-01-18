@@ -35,6 +35,8 @@ library(tune)
 library(yardstick)
 library(randomForest)
 library(ranger)
+library(tidymodels)
+
 ```
 
 ## Introduction
@@ -1366,8 +1368,7 @@ NB : The imputation and machine learning model excluding primary key of the work
 lasgana <- recipe(target ~ ., data = learn_merged) %>%
   update_role(PRIMARY_KEY, new_role = "ID") %>%
   step_impute_median(all_numeric_predictors()) %>%
-  step_impute_mode(all_nominal_predictors())  %>%
-  step_normalize(all_numeric_predictors())
+  step_impute_mode(all_nominal_predictors()) 
 
 
 prep_it <- prep(lasgana, training = learn_merged)
@@ -1378,7 +1379,7 @@ learn_imputed <- bake(prep_it, new_data = learn_merged)
 # Checking the result
 after_imputation_summary <- learn_imputed %>%
   summarise(across(all_of(columns_to_impute), ~ round(sum(is.na(.)) / n() * 100, 2)))
-
+after_imputation_summary
 ```
 
 ```         
