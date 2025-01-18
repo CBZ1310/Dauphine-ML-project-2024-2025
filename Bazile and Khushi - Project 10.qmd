@@ -5,9 +5,9 @@ format: pdf
 editor: visual
 ---
 
-```{r}
-#Libraries
+```{r, warning=FALSE, message=FALSE}
 here::i_am("Dauphine-ML-project-2024-2025.Rproj")
+#Libraries
 library(here)
 library(readr)
 
@@ -47,14 +47,14 @@ library(tidymodels)
 #Learning data set
 
 ## Import data
-learn_df <- read_csv("Data - source/project-10-files/learn_dataset.csv")
+learn_df <- read_csv("Data - source/project-10-files/learn_dataset.csv", show_col_types = FALSE)
 
 ##Check for NA
 learn_df %>%  summarise_all(~ sum(is.na(.))) # No missing data
 
 # Test dataset
 ## Import data
-test_df <- read_csv("Data - source/project-10-files/test_dataset.csv")
+test_df <- read_csv("Data - source/project-10-files/test_dataset.csv", show_col_types = FALSE)
 any(duplicated(learn_df$PRIMARY_KEY)) 
 
 ##Check for NA
@@ -68,17 +68,17 @@ The principal datasets, both from the learning and testing phases, do not contai
 
 # Import additional data
 
-learn_emp_type <- read_csv("Data - source/project-10-files/learn_dataset_emp_type.csv")
+learn_emp_type <- read_csv("Data - source/project-10-files/learn_dataset_emp_type.csv", show_col_types = FALSE)
 
-learn_job <- read_csv("Data - source/project-10-files/learn_dataset_job.csv")
+learn_job <- read_csv("Data - source/project-10-files/learn_dataset_job.csv", show_col_types = FALSE)
 
-learn_retired_former <- read_csv("Data - source/project-10-files/learn_dataset_retired_former.csv")
+learn_retired_former <- read_csv("Data - source/project-10-files/learn_dataset_retired_former.csv", show_col_types = FALSE)
 
-learn_retired_jobs <- read_csv("Data - source/project-10-files/learn_dataset_retired_jobs.csv")
+learn_retired_jobs <- read_csv("Data - source/project-10-files/learn_dataset_retired_jobs.csv", show_col_types = FALSE)
 
-learn_retired_pension <- read_csv("Data - source/project-10-files/learn_dataset_retired_pension.csv")
+learn_retired_pension <- read_csv("Data - source/project-10-files/learn_dataset_retired_pension.csv", show_col_types = FALSE)
 
-learn_sport <- read_csv("Data - source/project-10-files/learn_dataset_sport.csv")
+learn_sport <- read_csv("Data - source/project-10-files/learn_dataset_sport.csv", show_col_types = FALSE)
 
 # Chekcing for duplicate
  
@@ -120,17 +120,17 @@ learn_merged <- learn_df %>%
 
 # Import additional data
 
-test_emp_type <- read_csv("Data - source/project-10-files/test_dataset_emp_type.csv")
+test_emp_type <- read_csv("Data - source/project-10-files/test_dataset_emp_type.csv", show_col_types = FALSE)
 
-test_job <- read_csv("Data - source/project-10-files/test_dataset_job.csv")
+test_job <- read_csv("Data - source/project-10-files/test_dataset_job.csv", show_col_types = FALSE)
 
-test_retired_former <- read_csv("Data - source/project-10-files/test_dataset_retired_former.csv")
+test_retired_former <- read_csv("Data - source/project-10-files/test_dataset_retired_former.csv", show_col_types = FALSE)
 
-test_retired_jobs <- read_csv("Data - source/project-10-files/test_dataset_retired_jobs.csv")
+test_retired_jobs <- read_csv("Data - source/project-10-files/test_dataset_retired_jobs.csv", show_col_types = FALSE)
 
-test_retired_pension <- read_csv("Data - source/project-10-files/test_dataset_retired_pension.csv")
+test_retired_pension <- read_csv("Data - source/project-10-files/test_dataset_retired_pension.csv", show_col_types = FALSE)
 
-test_sport <- read_csv("Data - source/project-10-files/test_dataset_sport.csv")
+test_sport <- read_csv("Data - source/project-10-files/test_dataset_sport.csv", show_col_types = FALSE)
 
 # Chekcing for duplicate
  
@@ -211,13 +211,13 @@ No missing values were found to report.
 # Importation of the  dataset
 
 city_adm <- read_csv("Data - source/project-10-files/city_adm.csv", 
-                     col_types = cols(INSEE = col_character())) # the option col_types makes sure that INSEE's code are treated as characters what was not automatically the case this time during importation. 
+                     col_types = cols(INSEE = col_character()), show_col_types = FALSE) # the option col_types makes sure that INSEE's code are treated as characters what was not automatically the case this time during importation. 
 
 city_pop <- read_csv("Data - source/project-10-files/city_pop.csv", 
-    col_types = cols(INSEE = col_character()))
+    col_types = cols(INSEE = col_character()), show_col_types = FALSE)
 
 
-# Merging
+# Merging city_adm and city_pop
 learn_merged <- learn_merged %>% 
   left_join(city_adm, by = "INSEE") %>% 
   left_join(city_pop, by = "INSEE")
@@ -227,26 +227,27 @@ test_merged <- test_merged %>%
   left_join(city_pop, by = "INSEE")
 
 # Checking NA for new data
-col_demo_data <- colnames(left_join(city_adm, city_pop, by = "INSEE")) #column names of the new data
+col_demo_data <- colnames(left_join(city_adm, city_pop, by = "INSEE")) # Column names of the new data
 
+# Corrected selection with `all_of()`
 demo_learn_na_count <- learn_merged %>%
-  select(col_demo_data) %>%  
+  select(all_of(col_demo_data)) %>%  
   summarise(across(everything(), ~ as.integer(sum(is.na(.))))) %>%
   mutate(Statistics = "Learning set : count")
 
-
 demo_test_na_count <- test_merged %>%
-  select(col_demo_data) %>%  
+  select(all_of(col_demo_data)) %>% 
   summarise(across(everything(), ~ as.integer(sum(is.na(.))))) %>%
   mutate(Statistics = "Test set : count")
 
-
-demo_na_sum_table <- bind_rows(demo_learn_na_count, demo_test_na_count) 
+# Combine results
+demo_na_sum_table <- bind_rows(demo_learn_na_count, demo_test_na_count)
 
 # Removing intermediary columns
 rm(col_demo_data)
 rm(demo_test_na_count)
 rm(demo_learn_na_count)
+
 ```
 
 We started by looking at an overview of the dataset content. It allow us to see whether some variables were mischaracterized.
@@ -406,7 +407,7 @@ comparison_table <- learn_merged_uncoded %>%
 
 ################################     Code Act       ################################
 #Import
-code_act <- read_csv("Data - source/project-10-files/code/code_act.csv")
+code_act <- read_csv("Data - source/project-10-files/code/code_act.csv", show_col_types = FALSE)
 
 #Merging
 learn_merged_uncoded <- merge(learn_merged_uncoded, code_act, by.x = "act", by.y = "Code", all.x = TRUE, all.y = FALSE)
@@ -439,7 +440,7 @@ rm(code_act)
 
 ################################ Code Household type ###############################
 # Import
-code_Household_type <- read_csv("Data - source/project-10-files/code/code_Household_type.csv")
+code_Household_type <- read_csv("Data - source/project-10-files/code/code_Household_type.csv", show_col_types = FALSE)
 
 #Merging
 learn_merged_uncoded <- merge(learn_merged_uncoded, code_Household_type, by.x = "Household_type", by.y = "Code", all.x = TRUE, all.y = FALSE)
@@ -471,7 +472,7 @@ rm(code_Household_type)
 
 ################################ Code Highest Degree ###############################
 # Import
-code_Highest_degree <- read_csv("Data - source/project-10-files/code/code_Highest_degree.csv")
+code_Highest_degree <- read_csv("Data - source/project-10-files/code/code_Highest_degree.csv", show_col_types = FALSE)
 
 # Merging
 learn_merged_uncoded <- merge(learn_merged_uncoded, code_Highest_degree, by.x = "Highest_degree", by.y = "Code", all.x = TRUE, all.y = FALSE)
@@ -508,7 +509,7 @@ rm(code_Highest_degree)
 
 ################################ Code JOB 42 ###############################
 # Import
-code_JOB_42 <- read_csv("Data - source/project-10-files/code/code_JOB_42.csv")
+code_JOB_42 <- read_csv("Data - source/project-10-files/code/code_JOB_42.csv", show_col_types = FALSE)
 
 # Merging
 learn_merged_uncoded <- merge(learn_merged_uncoded, code_JOB_42, by.x = "JOB_42", by.y = "Code", all.x = TRUE, all.y = FALSE)
@@ -581,7 +582,7 @@ rm(code_JOB_42)
 
 ################################ Code LAST JOB 42 ###############################
 # Import
-code_JOB_42 <- read_csv("Data - source/project-10-files/code/code_JOB_42.csv")
+code_JOB_42 <- read_csv("Data - source/project-10-files/code/code_JOB_42.csv", show_col_types = FALSE)
 
 # Merging
 learn_merged_uncoded <- merge(learn_merged_uncoded, code_JOB_42, by.x = "LAST_JOB_42", by.y = "Code", all.x = TRUE, all.y = FALSE)
@@ -651,7 +652,7 @@ rm(code_JOB_42)
 
 ################################ Code Emp type ###############################
 # Import code
-code_emp_type <- read_csv("Data - source/project-10-files/code/code_emp_type.csv")
+code_emp_type <- read_csv("Data - source/project-10-files/code/code_emp_type.csv", show_col_types = FALSE)
 
 # Merging
 learn_merged_uncoded <- merge(learn_merged_uncoded, code_emp_type, by.x = "emp_type", by.y = "Code", all.x = TRUE, all.y = FALSE)
@@ -686,7 +687,7 @@ rm(code_emp_type)
 
 ################################ Code Emp type ###############################
 # Import code
-code_emp_type <- read_csv("Data - source/project-10-files/code/code_emp_type.csv")
+code_emp_type <- read_csv("Data - source/project-10-files/code/code_emp_type.csv", show_col_types = FALSE)
 
 # Merging
 learn_merged_uncoded <- merge(learn_merged_uncoded, code_emp_type, by.x = "last_emp_type", by.y = "Code", all.x = TRUE, all.y = FALSE)
@@ -721,7 +722,7 @@ rm(code_emp_type)
 
 ################################ Code Company category ###############################
 # Importation
-code_company_category <- read_csv("Data - source/project-10-files/code/code_company_category.csv")
+code_company_category <- read_csv("Data - source/project-10-files/code/code_company_category.csv", show_col_types = FALSE)
 
 # Merging
 learn_merged_uncoded <- merge(learn_merged_uncoded, code_company_category, by.x = "company_category", by.y = "Code", all.x = TRUE, all.y = FALSE)
@@ -754,7 +755,7 @@ rm(code_company_category)
 ################################ ECO - sect ###############################
 
 # Import du fichier CSV
-code_ECO_SECT <- read_csv("Data - source/project-10-files/code/code_ECO_SECT.csv")
+code_ECO_SECT <- read_csv("Data - source/project-10-files/code/code_ECO_SECT.csv", show_col_types = FALSE)
 
 learn_merged_uncoded <- learn_merged_uncoded
 
@@ -1233,6 +1234,9 @@ Basing our reflections on the descriptive statistics of the next sections, sever
 
 ```{r}
 learn_merged <- learn_merged %>%
+  select(-sports)
+
+test_merged <- test_merged %>%
   select(-sports)
 ```
 
