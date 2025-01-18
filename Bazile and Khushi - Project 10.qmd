@@ -37,6 +37,7 @@ library(yardstick)
 library(randomForest)
 library(ranger)
 library(tidymodels)
+library(future)
 
 ```
 
@@ -1376,6 +1377,7 @@ NB : The imputation and machine learning model excluding primary key of the work
 **Test with recipes 2**
 
 ```{r}
+plan(multisession)
 
 lasagna <- recipe(target ~ ., data = learn_merged) %>%
   update_role(PRIMARY_KEY, new_role = "ID") %>%
