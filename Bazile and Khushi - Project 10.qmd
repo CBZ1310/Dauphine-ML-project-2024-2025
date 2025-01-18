@@ -1406,8 +1406,8 @@ linear_workflow <- workflow() %>%
 compound_v <- vfold_cv(learn_merged, v = 5, strata = target)
 
 logit_result <- fit_resamples(
-  wf_logreg,
-  resamples = cv_folds,
+  linear_workflow,
+  resamples = compound_v,
   metrics = metric_set(accuracy, roc_auc))
 
 collect_metrics(res_logreg)
@@ -1446,15 +1446,11 @@ compound_v <- vfold_cv(learn_merged, v = 5, strata = target)
 ## Using tune_grid on the tree
 
 
-X <- setdiff(names(learn_merged), c("target", "PRIMARY_KEY"))
-
-model_formula <- as.formula(paste("target ~", paste(X, collapse = " + ")))
-
-my_tuned_tree <- tree_workflow %>% 
-  tune_grid(model_formula,
-            resamples = compound_v,
-            grid = my_grid,
-            control = control_grid(save_workflow = TRUE))
+my_tuned_tree <- tune_grid(
+  tree_workflow,
+  resamples = compound_v,
+  grid = my_grid,
+  control = control_grid(save_workflow = TRUE))
 ```
 
 Graph
@@ -1530,11 +1526,11 @@ forest_workflow <- workflow() %>%
 homelander <- vfold_cv(learn_merged, v = 5, strata = target)
 
 amazonia_tuned <- tune_grid(
-  amazonia,
-  preprocessor = model_formula, 
+  forest_workflow,                  
   resamples = homelander,
-  grid = my_grid_rf,
-  metrics = metric_set(accuracy, roc_auc))
+  grid = my_grid_rf,                
+  metrics = metric_set(accuracy, roc_auc),
+  control = control_grid(save_workflow = TRUE))
 
 # Best parameters
 best_rf_params <- amazonia_tuned %>%
