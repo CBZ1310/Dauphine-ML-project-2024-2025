@@ -1290,6 +1290,7 @@ before_imputation_summary <- learn_merged %>%
 before_imputation_summary %>%
   t() %>%  
   as.data.frame() %>%
+  rename(Percentage = V1) %>%
   kable(caption = "Percentage of Missing Values Before Imputation for Each Variable")
 
 
@@ -1317,8 +1318,9 @@ knn_step
 
 # Display a summary table of missing values after imputation
 after_imputation_summary %>%
-  t() %>%  # Transpose to show variables as rows
+  t() %>% 
   as.data.frame() %>%
+  rename(Percentage = V1) %>%
   kable(caption = "Percentage of Missing Values After Imputation for Each Variable")
 
 ```
