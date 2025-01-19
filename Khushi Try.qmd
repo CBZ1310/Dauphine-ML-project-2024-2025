@@ -20,28 +20,66 @@ library(mice, warn.conflicts = FALSE)
 library(purrr)
 library(caret)
 library(randomForest)
-library(data.table)
-library(themis)
-library(xgboost)
-library(rsample)
-library(corrr)
+library(recipes)
+## ML
+library(parsnip)
+library(tune)
+library(yardstick)
+library(randomForest)
+library(ranger)
+library(tidymodels)
+library(future)
 ```
 
-# Learn
+# Data Loading
 
-## Data Loading
+### Learn
 
 ```{r}
 #| message: false
 #| warning: false
 learn <- vroom(here("Data - source", "project-10-files", "learn_dataset.csv"), delim = ",", show_col_types = FALSE)
+
 emp_type <- vroom(here("Data - source", "project-10-files", "learn_dataset_emp_type.csv"), delim = ",", show_col_types = FALSE)
+
 job <- vroom(here("Data - source", "project-10-files", "learn_dataset_job.csv"), delim = ",", show_col_types = FALSE)
+
 retired_former <- vroom(here("Data - source", "project-10-files", "learn_dataset_retired_former.csv"), delim = ",", show_col_types = FALSE)
-retired_jobs <- vroom(here("Data - source", "project-10-files", "learn_dataset_retired_jobs.csv"), delim = ",", show_col_types = FALSE)
+
+retired_jobs <- vroom(here("Data - source", "project-10-files", "learn_dataset_retired_jobs.csv"), delim = ",", show_col_types = FALSE) |>
+  rename_with(
+    .fn = ~ paste0("LAST_", .x),                 
+    .cols = -c("PRIMARY_KEY", "LAST_DEP"))
+
 retired_pension <- vroom(here("Data - source", "project-10-files", "learn_dataset_retired_pension.csv"), delim = ",", show_col_types = FALSE)
+
 sports <- vroom(here("Data - source", "project-10-files", "learn_dataset_sport.csv"), delim = ",", show_col_types = FALSE)
 
+regions <- vroom(here("Data - source", "project-10-files", "regions.csv"), delim = ",", show_col_types = FALSE)
+
+learn_merged_uncoded_clean <- vroom(here("created csvs", "learn_merged_uncoded_clean.csv"), delim = ",", show_col_types = FALSE)
+
+code_sports <- vroom(here("Data - source", "project-10-files", "code", "code_sports.csv"), delim = ",", show_col_types = FALSE)
+```
+
+### Test
+
+```{r}
+test <- vroom(here("Data - source", "project-10-files", "test_dataset.csv"), delim = ",", show_col_types = FALSE)
+test_emp_type <- vroom(here("Data - source", "project-10-files", "test_dataset_emp_type.csv"), delim = ",", show_col_types = FALSE)
+test_job <- vroom(here("Data - source", "project-10-files", "test_dataset_job.csv"), delim = ",", show_col_types = FALSE)
+test_retired_former <- vroom(here("Data - source", "project-10-files", "test_dataset_retired_former.csv"), delim = ",", show_col_types = FALSE)
+test_retired_jobs <- vroom(here("Data - source", "project-10-files", "test_dataset_retired_jobs.csv"), delim = ",", show_col_types = FALSE)  |>
+  rename_with(
+    .fn = ~ paste0("LAST_", .x),                 
+    .cols = -c("PRIMARY_KEY", "LAST_DEP"))
+test_retired_pension <- vroom(here("Data - source", "project-10-files", "test_dataset_retired_pension.csv"), delim = ",", show_col_types = FALSE)
+test_sports <- vroom(here("Data - source", "project-10-files", "test_dataset_sport.csv"), delim = ",", show_col_types = FALSE)
+```
+
+### Location
+
+```{r}
 city_adm <- vroom(here("Data - source", "project-10-files", "city_adm.csv"), delim = ",", show_col_types = FALSE)
 
 city_loc <- vroom(here("Data - source", "project-10-files", "city_loc.csv"), delim = ",", show_col_types = FALSE)
@@ -49,11 +87,41 @@ city_loc <- vroom(here("Data - source", "project-10-files", "city_loc.csv"), del
 city_pop <- vroom(here("Data - source", "project-10-files", "city_pop.csv"), delim = ",", show_col_types = FALSE)
 
 departments <- vroom(here("Data - source", "project-10-files", "departments.csv"), delim = ",", show_col_types = FALSE)
-
-regions <- vroom(here("Data - source", "project-10-files", "regions.csv"), delim = ",", show_col_types = FALSE)
-
-learn_merged_uncoded_clean <- vroom(here("created csvs", "learn_merged_uncoded_clean.csv"), delim = ",", show_col_types = FALSE)
 ```
+
+#### Combining Learn Data
+
+```{r}
+learn <- learn %>%
+  left_join(emp_type, by = "PRIMARY_KEY") |>
+  left_join(job, by = "PRIMARY_KEY") |>
+  left_join(retired_former, by = "PRIMARY_KEY") |>
+  left_join(retired_jobs, by = "PRIMARY_KEY") |>
+  left_join(retired_pension, by = "PRIMARY_KEY") |>
+  left_join(sports, by = "PRIMARY_KEY") |>
+  left_join(city_adm, by = "INSEE") |>
+  left_join(city_pop, by = "INSEE") |>
+  left_join(departments, by = "DEP") |>
+  left_join(city_loc, by = "INSEE")
+```
+
+#### Combine Test Data
+
+```{r}
+test <- test %>%
+  left_join(test_emp_type, by = "PRIMARY_KEY") |>
+  left_join(test_job, by = "PRIMARY_KEY") |>
+  left_join(test_retired_former, by = "PRIMARY_KEY") |>
+  left_join(test_retired_jobs, by = "PRIMARY_KEY") |>
+  left_join(test_retired_pension, by = "PRIMARY_KEY") |>
+  left_join(test_sports, by = "PRIMARY_KEY") |>
+  left_join(city_adm, by = "INSEE") |>
+  left_join(city_pop, by = "INSEE") |>
+  left_join(departments, by = "DEP") |>
+  left_join(city_loc, by = "INSEE")
+```
+
+## Understanding and Cleaning Data
 
 ### Stratify or Not?
 
@@ -77,49 +145,7 @@ ggplot(target_df, aes(x = Target, y = Proportion, fill = Target)) +
 
 **Because the response variable is a bit imbalanced, we will use stratify sampling. But it is not that serious so we don't need up-sampling or down-sampling**
 
-## Combining Learn Data
-
-```{r}
-learn <- learn %>%
-  left_join(emp_type, by = "PRIMARY_KEY") |>
-  left_join(job, by = "PRIMARY_KEY") |>
-  left_join(retired_former, by = "PRIMARY_KEY") |>
-  left_join(retired_jobs, by = "PRIMARY_KEY") |>
-  left_join(retired_pension, by = "PRIMARY_KEY") |>
-  left_join(sports, by = "PRIMARY_KEY") |>
-  left_join(city_adm, by = "INSEE") |>
-  left_join(city_pop, by = "INSEE") |>
-  left_join(departments, by = "DEP") |>
-  
-  mutate(TYPE_CONTRACT = ifelse(is.na(TYPE_OF_CONTRACT.x), TYPE_OF_CONTRACT.y, TYPE_OF_CONTRACT.x)) |>
-  select(-TYPE_OF_CONTRACT.x, -TYPE_OF_CONTRACT.y) |>
-  
-  mutate(Working_hours = ifelse(is.na(Working_hours.x), Working_hours.y, Working_hours.x)) |>
-  select(-Working_hours.x, -Working_hours.y) |>
-  
-    mutate(Work_condition = ifelse(is.na(Work_condition.x), Work_condition.y, Work_condition.x)) |>
-  select(-Work_condition.x, -Work_condition.y) |>
-  
-  mutate(company_category = ifelse(is.na(company_category.x), company_category.y, company_category.x)) |>
-  select(-company_category.x, -company_category.y) |>
-  
-  mutate(ECO_SECT = ifelse(is.na(ECO_SECT.x), ECO_SECT.y, ECO_SECT.x)) |>
-  select(-ECO_SECT.x, -ECO_SECT.y) |>
-  
-  mutate(job_desc = ifelse(is.na(job_desc.x), job_desc.y, job_desc.x)) |>
-  select(-job_desc.x, -job_desc.y) |>
-  
-  mutate(employee_count = ifelse(is.na(employee_count.x), employee_count.y, employee_count.x)) %>%
-  select(-employee_count.x, -employee_count.y) |>
-  
-  mutate(Job_dep = ifelse(is.na(Job_dep.x), Job_dep.y, Job_dep.x)) |>
-  select(-Job_dep.x, -Job_dep.y) |>
-  
-  mutate(job_category = ifelse(is.na(job_category.x), job_category.y, job_category.x)) |>
-  select(-job_category.x, -job_category.y)
-```
-
-## Missing Values
+### Missing Values
 
 ```{r}
 miss_learn <- gg_miss_var(learn, show_pct = TRUE) +
@@ -129,55 +155,583 @@ miss_learn <- gg_miss_var(learn, show_pct = TRUE) +
 miss_learn
 ```
 
-## MissForest
-https://rpubs.com/lmorgan95/MissForest#:~:text=MissForest%20is%20a%20random%20forest,then%20predicts%20the%20missing%20part.
+### Category Simplification for job_desc
+
 ```{r}
-set.seed(111)
-train_index <- sample(nrow(learn), 700) 
-
-train <- learn[train_index, ]
-train_X <- prodNA(select(train, -target), 0.2) |>
-  mutate(across(where(is.character), as.factor)) |>
-  mutate(across(where(is.logical), as.factor))
-
-test <- learn[-train_index, ]
-test_X <- prodNA(select(test, -target), 0.2)|>
-  mutate(across(where(is.character), as.factor)) |>
-  mutate(across(where(is.logical), as.factor))
+code_job_desc_map <- vroom(
+  here("Data - source", "project-10-files", "code", "code_job_desc_map.csv"),
+  delim = ",",
+  show_col_types = FALSE
+) %>%
+  select(-N2) 
 ```
 
 ```{r}
-imputed_rf <- missForest(train_X)
-completed_data_rf <- imputed_rf$ximp 
+learn <- learn |>
+  left_join(code_job_desc_map, by = c("job_desc" = "N3")) |>
+  mutate(job_desc = N1) |>
+  select(-N1) |>
+  
+  left_join(code_job_desc_map, by = c("LAST_job_desc" = "N3")) |>
+  mutate(LAST_job_desc = N1) |>
+  select(-N1)
+
+test <- test |>
+  left_join(code_job_desc_map, by = c("job_desc" = "N3")) |>
+  mutate(job_desc = N1) |>
+  select(-N1) |>
+  
+  left_join(code_job_desc_map, by = c("LAST_job_desc" = "N3")) |>
+  mutate(LAST_job_desc = N1) |>
+  select(-N1)
 ```
 
+```{r}
+job_desc_counts <- table(learn$job_desc)
+job_desc_proportions <- prop.table(job_desc_counts)
+job_desc_df <- as.data.frame(job_desc_proportions)
 
+colnames(job_desc_df) <- c("Job", "Proportion")
+
+
+ggplot(job_desc_df, aes(x = Job, y = Proportion, fill = Job)) +
+  geom_bar(stat = "identity") +
+  scale_y_continuous(labels = scales::percent) +
+  labs(
+    title = "Proportion of Each Job Descriptions",
+    x = "Job Descriptions",
+    y = "Proportion"
+  ) +
+  theme_minimal()
+```
 
 ```{r}
+library(sf)
+
+points_sf <- st_as_sf(learn, coords = c("long", "Lat"), crs = 4326, remove = FALSE)
+
+```
+
+### Maps by departments
+
+#### Renumeration
+
+```{r}
+# Summarize mean remuneration by DEP
+aggregated_data <- learn |>
+  group_by(DEP) |>
+  summarize(mean_remuneration = mean(as.numeric(remuneration), na.rm = TRUE), .groups = "drop")
+
+# Add Lat and long by merging back with the original dataset
+aggregated_data <- aggregated_data |>
+  left_join(learn |> select(DEP, Lat, long), by = "DEP") |>
+  distinct()
+
+# Plot the map
+ggplot() +
+  geom_point(data = aggregated_data, aes(x = long, y = Lat, color = mean_remuneration), size = 2, alpha = 0.7) +
+  coord_fixed(ratio = 1.2) +
+  scale_color_viridis_c(option = "plasma", na.value = "grey90") +
+  theme_minimal(base_size = 12) +
+  labs(
+    title = "Map of France: Remuneration",
+    subtitle = "Average Remuneration by City",
+    x = "Longitude",
+    y = "Latitude",
+    color = "Remuneration"
+  ) +
+  guides(fill=guide_legend(
+    keyheight = unit(1.15, units = "mm"),
+    keywidth = unit(15, units = "mm"),
+    title.position = 'top',
+    title.hjust = 0.5,
+    label.hjust = 0.5,
+    nrow =1,
+    byrow = T,
+    reverse = F,
+    label.position = "bottom")
+  ) +
+  theme_void() +
+  theme(legend.position = "bottom")
+```
+
+#### Retirement Pay
+
+```{r}
+aggregated_retirement_pay <- learn |>
+  group_by(DEP) |>
+  summarize(mean_retirement_pay = mean(as.numeric(Retirement_pay), na.rm = TRUE), .groups = "drop")
+
+aggregated_retirement_pay <- aggregated_retirement_pay |>
+  left_join(learn |> select(DEP, Lat, long), by = "DEP") |>
+  distinct()
+
+# Plot the map
+ggplot() +
+  geom_point(data = aggregated_retirement_pay, aes(x = long, y = Lat, color = mean_retirement_pay), size = 2, alpha = 0.7) +
+  coord_fixed(ratio = 1.2) +
+  scale_color_viridis_c(option = "plasma", na.value = "grey90") +
+  theme_minimal(base_size = 12) +
+  labs(
+    title = "Map of France: Retirement_pay",
+    subtitle = "Average Retirement pay by Departments",
+    x = "Longitude",
+    y = "Latitude",
+    color = "Remuneration"
+  ) +
+  guides(fill=guide_legend(
+    keyheight = unit(1.15, units = "mm"),
+    keywidth = unit(15, units = "mm"),
+    title.position = 'top',
+    title.hjust = 0.5,
+    label.hjust = 0.5,
+    nrow =1,
+    byrow = T,
+    reverse = F,
+    label.position = "bottom")
+  ) +
+  theme_void() +
+  theme(legend.position = "bottom")
+```
+
+### Removing large data
+
+```{r}
+learn <- learn %>%
+  select(-INSEE, -sports)
+
+test <- test %>%
+  select(-INSEE, -sports)
+```
+
+## Imputation Recipe
+
+### '-1' and 'Not Applicable'
+
+For employment related-variable :
+
+```{{r}}
+# List of work-related variables
 work_related_var <- c("remuneration", "ECO_SECT", "emp_type", "job_category",
-                          "Job_dep", "employee_count", "company_category",
-                          "Work_condition", "Working_hours", "TYPE_CONTRACT")
+                      "Job_dep", "employee_count", "company_category",
+                      "Work_condition", "Working_hours", "TYPE_OF_CONTRACT")
 
-    # (2) Apply transformation using a loop
-    for (var in work_related_var) {
-      learn[[var]] <- ifelse(
-        is.na(learn[[var]]) & !(learn$act %in% c("ACT2.1", "ACT1.1")) & is.numeric(learn[[var]]), 
-        -1,
-        ifelse(
-          is.na(learn[[var]]) & !(learn$act %in% c("ACT2.1", "ACT1.1")) & !is.numeric(learn[[var]]), 
-          "Not applicable", 
-          learn[[var]]))}
+# Transformation using a loop for active status
+for (var in work_related_var) {
+  learn[[var]] <- ifelse(
+    is.na(learn[[var]]) & !(learn$act %in% c("ACT1.1")) & is.numeric(learn[[var]]), 
+    -1,
+    ifelse(
+      is.na(learn[[var]]) & !(learn$act %in% c("ACT1.1")) & !is.numeric(learn[[var]]), 
+      "Not applicable", 
+      learn[[var]]))}
+
+# Transformation using a loop for self employed
+for (var in work_related_var) {
+  learn[[var]] <- ifelse(
+    is.na(learn[[var]]) & (learn$emp_type %in% c("EMP2.1", "EMP2.2", "EMP2.3")) & is.numeric(learn[[var]]), 
+    -1,
+    ifelse(
+      is.na(learn[[var]]) & (learn$emp_type %in% c("EMP2.1", "EMP2.2", "EMP2.3")) & !is.numeric(learn[[var]]), 
+      "Not applicable", 
+      learn[[var]]))}
 ```
 
 
 ```{r}
- set.seed(20240108)
-learn_split <- initial_split(learn, prop = 0.8)
-learn_tr <- training(learn_split)
-learn_te <- testing(learn_split)
+### Transformation using a loop for active status
+for (var in work_related_var) {
+  test[[var]] <- ifelse(
+    is.na(test[[var]]) & !(test$act %in% c("ACT1.1")) & is.numeric(test[[var]]), 
+    -1,
+    ifelse(
+      is.na(test[[var]]) & !(test$act %in% c("ACT1.1")) & !is.numeric(test[[var]]), 
+      "Not applicable", 
+      test[[var]]))}
+
+### Transformation using a loop for self employed
+for (var in work_related_var) {
+  test[[var]] <- ifelse(
+    is.na(test[[var]]) & (test$emp_type %in% c("EMP2.1", "EMP2.2", "EMP2.3")) & is.numeric(test[[var]]), 
+    -1,
+    ifelse(
+      is.na(test[[var]]) & (test$emp_type %in% c("EMP2.1", "EMP2.2", "EMP2.3")) & !is.numeric(test[[var]]), 
+      "Not applicable", 
+      test[[var]]))}
 ```
 
-### Retirement
+For retirement related-variable :
+
+```{r}
+# List of retirement-related variables
+retirement_related_var <- c(grep("^LAST_", names(learn), value = TRUE),  "last_emp_type", "retirement_age", "Retirement_pay")
+
+# Apply the transformation only for missing values when act is NOT "ACT2.1"
+for (var in retirement_related_var) {
+  learn[[var]] <- ifelse(
+    is.na(learn[[var]]) & learn$act != "ACT2.1" & is.numeric(learn[[var]]),
+    -1,
+    ifelse(
+      is.na(learn[[var]]) & learn$act != "ACT2.1" & !is.numeric(learn[[var]]),
+      "Not applicable",
+      learn[[var]]))}
+
+
+# Code for the test set
+for (var in retirement_related_var) {
+  test[[var]] <- ifelse(
+    is.na(test[[var]]) & test$act != "ACT2.1" & is.numeric(test[[var]]),
+    -1,
+    ifelse(
+      is.na(test[[var]]) & test$act != "ACT2.1" & !is.numeric(test[[var]]),
+      "Not applicable",
+      test[[var]]))}
+```
+
+### recipe
+
+```{r}
+impute_missing_values <- function(data, variable_list, impute_vars, trees = 5) {
+  recipes <- list()
+  
+  for (var in variable_list) {
+    recipes[[var]] <- create_recipe(data = data, imputed_var = var, impute_vars = impute_vars, trees = trees) %>%
+      step_unknown(all_nominal_predictors()) %>% 
+      step_dummy(all_nominal_predictors()) %>%  
+      step_normalize(all_numeric_predictors())
+  }
+  
+  return(recipes)
+}
+```
+
+
+::: callout-note
+#### Retirement variables
+:::
+
+The pension is calculated on three factors:
+
+-   Average Yearly Income for 25 best-earning years
+-   payment rate
+-   total length of insurance, including periods credited as periods of insurance
+
+There are also different organsiations for departments [more detail here](https://www.cleiss.fr/docs/regimes/regime_france/an_3.html). Bit of literature also shows difference in retirees income in mainland France and whole [population](https://www.connexionfrance.com/magazine/profile-of-retirees-in-france-and-their-pensions-with-comparison-to-uk-and-us/697013).
+
+For NA values I am trying to predict retirement pay based on variables in our data that can be possible proxies for above factors.
+
+| Factors                   | Proxies                                        |
+|-------------------------|-----------------------------------------------|
+| Income                    | `LAST_JOB_42` `last_emp_type` `retirement_age` |
+| Departmental difference   | `INSEE` `DEP`                                  |
+| Job Categories Retirement | `JOB_42`                                       |
+
+Adding filters for minimum retirement age noted, student and job status.
+
+According to [recipes package explanation](https://recipes.tidymodels.org/reference/step_impute_bag.html) – *"If a column is included in both lists to be imputed and to be an imputation predictor, it will be removed from the latter and not used to impute itself."*
+
+```{r}
+# Define variables with missing values to impute
+missing_vars_retirement <- c(grep("^LAST_", names(learn), value = TRUE),  "last_emp_type", "retirement_age", "Retirement_pay")
+
+impute_vars_retirement <- c("LAST_JOB_42", "last_emp_type", "retirement_age", "JOB_42", "DEP", "Household_type", "Highest_degree")
+
+# Generate recipes for missing values
+imputation_recipes <- impute_missing_values(
+  data = learn,
+  variable_list = missing_vars_retirement,
+  impute_vars = impute_vars_retirement,
+  trees = 5
+)
+```
+
+::: callout-note
+#### Employment
+:::
+
+```{r}
+# Define variables with missing values to impute
+missing_vars_employment <- c("company_category", "employee_count", "Job_dep", "job_category", "Working_hours", "Work_condition", "TYPE_OF_CONTRACT", "remuneration", "job_desc", "ECO_SECT", "emp_type")
+
+impute_vars_employment <- c("Studying", "JOB_42", "DEP", "Household_type", "Highest_degree", "AGE_2019")
+
+# Generate recipes for missing values
+imputation_recipes <- impute_missing_values(
+  data = learn,
+  variable_list = missing_vars_employment,
+  impute_vars = impute_vars_employment,
+  trees = 5
+)
+```
+
+# Machine Learning Model
+
+### Logistic Regression
+
+```{r}
+learn <- learn %>%
+  mutate(target = as.factor(target))
+
+logit_model <- logistic_reg() %>%
+  set_engine("glm") %>%
+  set_mode("classification")
+
+logit_workflow <- workflow() %>%
+  add_recipe(my_recipe) %>%
+  add_model(logit_model)
+
+# Cross-validation
+logit_cv <- vfold_cv(learn, v = 5, strata = target)
+
+logit_results <- fit_resamples(
+  logit_workflow,
+  resamples = logit_cv,
+  metrics = metric_set(accuracy, roc_auc)
+)
+
+# Collect metrics
+logit_metrics <- collect_metrics(logit_results)
+print(logit_metrics)
+```
+
+```{r}
+rf_model <- rand_forest(
+  mode = "regression", # Change to "classification" if needed
+  trees = 5
+) %>%
+  set_engine("ranger")
+
+my_workflow <- workflow() %>%
+  add_recipe(my_recipe) %>%
+  add_model(rf_model)
+
+fitted_workflow <- my_workflow %>%
+  fit(data = learn)
+```
+
+```{r}
+set.seed(123)
+cv_folds <- vfold_cv(learn, v = 5)
+
+cv_results <- fit_resamples(
+  my_workflow,
+  resamples = cv_folds,
+  metrics = metric_set(rmse, rsq)
+)
+
+predictions <- fitted_workflow %>%
+  predict(new_data = test) %>%
+  bind_cols(test)
+
+metrics <- predictions %>%
+  metrics(truth = Retirement_pay, estimate = .pred)
+```
+
+# Machine learning models
+
+One hot encoding
+
+```{r}
+# Pre-processing : Hot encoding
+```
+
+## Linear model with a logistic regression
+
+```{r}
+logit_m <- logistic_reg() %>%
+  set_engine("glm") %>%
+  set_mode("classification")
+
+linear_workflow <- workflow() %>%
+  add_recipe(lasagna) %>%
+  add_model(logit_m)
+
+compound_v <- vfold_cv(learn_merged, v = 5, strata = target)
+
+logit_result <- fit_resamples(
+  linear_workflow,
+  resamples = compound_v,
+  metrics = metric_set(accuracy, roc_auc))
+
+collect_metrics(res_logreg)
+
+final_logreg_fit <- wf_logreg %>% fit(data = learn_merged)
+```
+
+## Decision Tree
+
+```{r}
+##  Creation of the tree
+
+my_tree <- decision_tree(
+  cost_complexity = tune(),
+  min_n = tune(),
+  tree_depth = tune()
+) %>%
+  set_mode("classification") %>%
+  set_engine("rpart")
+
+tree_workflow <- workflow() %>%
+  add_model(my_tree) %>%
+  add_recipe(lasagna)
+
+
+
+my_grid <- expand.grid(
+  cost_complexity =  c(0, 0.1, 0.01, 0.001, 0.0001), 
+  min_n =  c(2L, 10L, 50L, 100L, 150L, 200L),                
+  tree_depth = c(2L,4L, 5L, 7L, 10L, 15L))
+
+## Re-sampling
+set.seed(12)
+compound_v <- vfold_cv(learn_merged, v = 5, strata = target)
+
+## Using tune_grid on the tree
+
+
+my_tuned_tree <- tune_grid(
+  tree_workflow,
+  resamples = compound_v,
+  grid = my_grid,
+  control = control_grid(save_workflow = TRUE))
+```
+
+Graph
+
+```{r}
+tuning_results <- collect_metrics(my_tuned_tree)
+
+my_results <- tuning_results %>%
+  filter(.metric == "accuracy")
+
+min_n_graph_a <- ggplot(my_results, aes(x = min_n, y = mean, color = as.factor(tree_depth))) +
+  geom_line() +
+  geom_point() +
+  facet_wrap(~ cost_complexity, scales = "free_y") +
+  theme_minimal() +
+  labs(
+    title = "Accuracy by minimum number of observations per node and tree depth faceted by cost complexity",
+     y = "Accuracy",
+     color = "Tree Depth")
+
+print(min_n_graph_a)
+```
+
+Our final tree using accuracy as key metric has the following parameters :
+
+```{r}
+my_best_parameters <- my_tuned_tree %>%    select_best(metric = "accuracy")  kable(my_best_parameters, caption = "Best Parameters for the Decision Tree Model")
+```
+
+```{r}
+my_final_tree_workflow <-  finalize_workflow(tree_workflow ,my_best_parameters)
+
+final_fit <- my_final_tree_workflow %>% last_fit(model_formula, data = learn_merged)
+```
+
+Confusion Matrices
+
+```{r}
+train_predictions %>% my_final_tree_workflow %>%
+  predict(new_data = learn_merged) %>%
+  bind_cols(train_data %>% select(target))
+
+# Compute the confusion matrix for the training set
+train_conf_matrix <- train_predictions %>%
+  conf_mat(truth = target, estimate = .pred_class)
+```
+
+## Random Forest
+
+```{r}
+#random forest model
+
+amazonia <- rand_forest(
+  mtry = tune(),
+  trees = 500,
+  min_n = tune()) %>%
+  set_mode("classification") %>%
+  set_engine("ranger")
+
+# Grid
+my_grid_rf <- expand.grid(
+  mtry = c(1L, 3L, 5L, 7L, 9L, 12L,15L), 
+  min_n = c(2L, 10L, 50L, 100L))
+
+# Workflow
+forest_workflow <- workflow() %>%
+  add_model(amazonia) %>%
+  add_recipe(lasagna)
+
+
+
+# Cv fold
+homelander <- vfold_cv(learn_merged, v = 5, strata = target)
+
+amazonia_tuned <- tune_grid(
+  forest_workflow,                  
+  resamples = homelander,
+  grid = my_grid_rf,                
+  metrics = metric_set(accuracy, roc_auc),
+  control = control_grid(save_workflow = TRUE))
+
+# Best parameters
+best_rf_params <- amazonia_tuned %>%
+  select_best(metric = "accuracy")
+```
+
+characteristics of the random forest
+
+```{r}
+print(best_rf_params)
+kable(best_rf_params, caption = "Parameters of the random forest model")
+```
+
+```{r}
+# Final model
+final_amazonia_workflow <- finalize_workflow(forest_workflow, best_rf_params)
+
+amazonia_fit <- final_amazonia_workflow %>%
+  fit(data = learn_merged)
+
+```
+
+Concusion matrices
+
+```{r}
+# Predictions on training set
+train_predictions_rf <- amazonia_fit %>%
+  predict(new_data = learn_merged) %>%
+  bind_cols(learn_merged %>% select(target))
+
+train_conf_matrix_rf <- train_predictions_rf %>%
+  conf_mat(truth = target, estimate = .pred_class)
+
+# Heatmap for training set
+train_matrix_rf <- autoplot(train_conf_matrix_rf, type = "heatmap") +
+  scale_fill_viridis_c(option = "plasma") +
+  labs(title = "Training Set (Random Forest)") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+print(train_matrix_rf)
+```
+
+```{r}
+train_metrics <- train_predictions_rf %>%
+  metrics(truth = target, estimate = .pred_class)
+
+# Print the metrics as a formatted table
+train_metrics %>%
+  kable(
+    caption = "Key Metrics for the Training Set (Random Forest)")
+```
+
+## **Gradient Boosting Machines**
+
+## Failed Attemps 'May be'
+
+#### Retirement
+
 ```{r}
 learn_rec <- recipe (~ ., data = learn_tr) |>
   step_impute_bag(Retirement_pay,
@@ -188,13 +742,13 @@ learn_rec <- recipe (~ ., data = learn_tr) |>
 baked_learn <- bake(learn_rec, new_data = NULL)
 ```
 
-Sanity Check -> 
+Sanity Check -\>
 
 ```{r}
-gg_miss_var(baked_learn, show_pct = TRUE) 
+gg_miss_var(learn, show_pct = TRUE) 
 ```
 
-### Retirement
+#### Retirement
 
 Retirement variables with missing values `Retirement_pay` and `retirement_age`
 
@@ -243,7 +797,7 @@ There are also different organsiations for departments [more detail here](https:
 For NA values I am trying to predict retirement pay based on variables in our data that can be possible proxies for above factors.
 
 | Factors                   | Proxies                                        |
-|------------------------|-----------------------------------------------|
+|-------------------------|-----------------------------------------------|
 | Income                    | `LAST_JOB_42` `last_emp_type` `retirement_age` |
 | Departmental difference   | `INSEE` `DEP`                                  |
 | Job Categories Retirement | `JOB_42` `DEP` `Studying` `act`                |
@@ -291,11 +845,6 @@ learn <- learn |>
 ```
 
 ### EMP Data
-
-```{r}
-
-```
-
 
 ```{r}
 # Impute Missing Values for Employment Variables
@@ -419,59 +968,6 @@ smote_data <- bake(prep_smote, new_data = NULL)
 # Confirm Class Distribution After SMOTE
 print("Class Distribution After SMOTE:")
 print(table(smote_data$target))
-```
-
-# Test
-
-### Load Test Data
-
-```{r}
-test <- vroom(here("Data - source", "project-10-files", "test_dataset.csv"), delim = ",", show_col_types = FALSE)
-test_emp_type <- vroom(here("Data - source", "project-10-files", "test_dataset_emp_type.csv"), delim = ",", show_col_types = FALSE)
-test_job <- vroom(here("Data - source", "project-10-files", "test_dataset_job.csv"), delim = ",", show_col_types = FALSE)
-test_retired_former <- vroom(here("Data - source", "project-10-files", "test_dataset_retired_former.csv"), delim = ",", show_col_types = FALSE)
-test_retired_jobs <- vroom(here("Data - source", "project-10-files", "test_dataset_retired_jobs.csv"), delim = ",", show_col_types = FALSE)
-test_retired_pension <- vroom(here("Data - source", "project-10-files", "test_dataset_retired_pension.csv"), delim = ",", show_col_types = FALSE)
-test_sports <- vroom(here("Data - source", "project-10-files", "test_dataset_sport.csv"), delim = ",", show_col_types = FALSE)
-```
-
-### Combine Test Data
-
-```{r}
-test <- test %>%
-  left_join(test_emp_type, by = "PRIMARY_KEY") |>
-  left_join(test_job, by = "PRIMARY_KEY") |>
-  left_join(test_retired_former, by = "PRIMARY_KEY") |>
-  left_join(test_retired_jobs, by = "PRIMARY_KEY") |>
-  left_join(test_retired_pension, by = "PRIMARY_KEY") |>
-  left_join(test_sports, by = "PRIMARY_KEY") |>
-  
-mutate(TYPE_CONTRACT = ifelse(is.na(TYPE_OF_CONTRACT.x), TYPE_OF_CONTRACT.y, TYPE_OF_CONTRACT.x)) |>
-  select(-TYPE_OF_CONTRACT.x, -TYPE_OF_CONTRACT.y) |>
-  
-  mutate(Working_hours = ifelse(is.na(Working_hours.x), Working_hours.y, Working_hours.x)) |>
-  select(-Working_hours.x, -Working_hours.y) |>
-  
-    mutate(Work_condition = ifelse(is.na(Work_condition.x), Work_condition.y, Work_condition.x)) |>
-  select(-Work_condition.x, -Work_condition.y) |>
-  
-  mutate(company_category = ifelse(is.na(company_category.x), company_category.y, company_category.x)) |>
-  select(-company_category.x, -company_category.y) |>
-  
-  mutate(ECO_SECT = ifelse(is.na(ECO_SECT.x), ECO_SECT.y, ECO_SECT.x)) |>
-  select(-ECO_SECT.x, -ECO_SECT.y) |>
-  
-  mutate(job_desc = ifelse(is.na(job_desc.x), job_desc.y, job_desc.x)) |>
-  select(-job_desc.x, -job_desc.y) |>
-  
-  mutate(employee_count = ifelse(is.na(employee_count.x), employee_count.y, employee_count.x)) %>%
-  select(-employee_count.x, -employee_count.y) |>
-  
-  mutate(Job_dep = ifelse(is.na(Job_dep.x), Job_dep.y, Job_dep.x)) |>
-  select(-Job_dep.x, -Job_dep.y) |>
-  
-  mutate(job_category = ifelse(is.na(job_category.x), job_category.y, job_category.x)) |>
-  select(-job_category.x, -job_category.y)
 ```
 
 ```{r}
