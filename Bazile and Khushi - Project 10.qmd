@@ -332,8 +332,7 @@ test_merged <- test_merged %>%
 ```
 
 ```{r}
-{r} 
-job_desc_counts <- table(learn$job_desc)
+job_desc_counts <- table(learn_merged$job_desc)
 job_desc_proportions <- prop.table(job_desc_counts)
 job_desc_df <- as.data.frame(job_desc_proportions)
 
@@ -383,8 +382,6 @@ rm(variable_summary_after_transformation_learn)
 rm(variable_summary_after_transformation_test)
 rm(variable_summary)
 ```
-
-### 
 
 ## Exploring the dataset
 
@@ -444,20 +441,20 @@ In other words, there are **`r ratio_A_E`** times more A than E in the dataset.
 ### Maps by departments
 
 ```{r}
-points_sf <- st_as_sf(learn, coords = c("long", "Lat"), crs = 4326, remove = FALSE)
+points_sf <- st_as_sf(learn_merged, coords = c("long", "Lat"), crs = 4326, remove = FALSE)
 ```
 
 #### Renumeration
 
 ```{r}
 # Summarize mean remuneration by DEP
-aggregated_data <- learn |>
+aggregated_data <- learn_merged |>
   group_by(DEP) |>
   summarize(mean_remuneration = mean(as.numeric(remuneration), na.rm = TRUE), .groups = "drop")
 
 # Add Lat and long by merging back with the original dataset
 aggregated_data <- aggregated_data |>
-  left_join(learn |> select(DEP, Lat, long), by = "DEP") |>
+  left_join(learn_merged |> select(DEP, Lat, long), by = "DEP") |>
   distinct()
 
 # Plot the map
@@ -491,12 +488,12 @@ ggplot() +
 #### Retirement Pay
 
 ```{r}
-aggregated_retirement_pay <- learn |>
+aggregated_retirement_pay <- learn_merged |>
   group_by(DEP) |>
   summarize(mean_retirement_pay = mean(as.numeric(Retirement_pay), na.rm = TRUE), .groups = "drop")
 
 aggregated_retirement_pay <- aggregated_retirement_pay |>
-  left_join(learn |> select(DEP, Lat, long), by = "DEP") |>
+  left_join(learn_merged |> select(DEP, Lat, long), by = "DEP") |>
   distinct()
 
 # Plot the map
@@ -526,8 +523,6 @@ ggplot() +
   theme_void() +
   theme(legend.position = "bottom")
 ```
-
-### 
 
 ### Understanding the NA
 
@@ -1526,7 +1521,7 @@ plan(multisession)
 lasagna <- recipe(target ~ ., data = learn_merged) %>%
   update_role(PRIMARY_KEY, new_role = "ID") %>%
   step_impute_mean(all_numeric_predictors()) %>%
-  step_impute_median(all_nominal_predictors()) 
+  step_impute_mode(all_nominal_predictors()) 
 
 
 prep_it <- prep(lasagna, training = learn_merged)
