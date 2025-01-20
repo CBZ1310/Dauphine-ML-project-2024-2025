@@ -1533,7 +1533,7 @@ learn_merged <- learn_merged %>%
 # General recipe
 lasagna <- recipe(target ~ ., data = learn_merged) %>%
   update_role(PRIMARY_KEY, new_role = "ID") %>%
-  step_impute_mean(all_numeric_predictors()) %>%
+  step_impute_median(all_numeric_predictors()) %>%
   step_impute_mode(all_nominal_predictors()) 
 
 
@@ -1555,7 +1555,7 @@ after_imputation_summary
 
 # Machine learning models
 
-## Linear model with a logistic regression
+### Linear model with a logistic regression
 
 ```{r}
 # Transform 'Studying' into a factor
@@ -1565,7 +1565,7 @@ learn_merged <- learn_merged %>%
 # Lasagna with salmon : A special recipe for logit
 lasagna_for_logit <- recipe(target ~ ., data = learn_merged) %>%
   update_role(PRIMARY_KEY, new_role = "ID") %>%
-  step_impute_mean(all_numeric_predictors()) %>%
+  step_impute_median(all_numeric_predictors()) %>%
   step_impute_mode(all_nominal_predictors()) %>% 
   step_dummy(all_nominal_predictors()) %>% 
   step_normalize(all_numeric_predictors()) %>%
@@ -1598,7 +1598,7 @@ logit_result <- tune_grid(
   logit_workflow,
   resamples = compound_v,
   grid = logit_grid,
-  metrics = metric_set(accuracy, roc_auc)
+  metrics = metric_set(accuracy, roc_auc, precision, recall, f_meas)
 )
 
 # Results
@@ -1614,7 +1614,25 @@ final_logit_workflow <- finalize_workflow(logit_workflow, best_params)
 final_logit_model <- fit(final_logit_workflow, data = learn_merged)
 ```
 
-## Decision Tree
+```{r}
+# Prediction
+train_predictions <- final_logit_model %>%
+  predict(new_data = learn_merged, type = "prob") %>%
+  bind_cols(final_logit_model %>%
+              predict(new_data = learn_merged, type = "class")) %>%
+  bind_cols(learn_merged %>% select(target))
+
+# Metrics
+train_metrics <- train_predictions %>%
+  metrics(truth = target, estimate = .pred_class, .pred_A)
+
+# My table
+train_metrics %>%
+  kable(
+    caption = "Performance Metrics for the Logistic Regression Model")
+```
+
+### Decision Tree
 
 ```{r}
 
@@ -1637,7 +1655,7 @@ tree_workflow <- workflow() %>%
 my_grid <- expand.grid(
   cost_complexity =  c(0, 0.1, 0.01, 0.001, 0.0001), 
   min_n =  c(2L, 10L, 50L, 100L, 150L, 200L),                
-  tree_depth = c(2L,4L, 5L, 7L, 10L, 15L))
+  tree_depth = c(1L, 5L, 10L, 15L, 30L, 50L, 100L))
 
 ## Re-sampling
 set.seed(12)
@@ -1649,7 +1667,8 @@ compound_v <- vfold_cv(learn_merged, v = 5, strata = target)
 my_tuned_tree <- tune_grid(
   tree_workflow,
   resamples = compound_v,
-  grid = my_grid,
+  grid = my_grid,                
+  metrics = metric_set(accuracy, roc_auc, precision, recall, f_meas),
   control = control_grid(save_workflow = TRUE))
 ```
 
@@ -1659,22 +1678,12 @@ Graph
 tuning_results <- collect_metrics(my_tuned_tree)
 
 my_results <- tuning_results %>%
-  filter(.metric == "accuracy")
+  filter(.metric == c("accuracy", "roc_auc"))
 
-min_n_graph_a <- ggplot(my_results, aes(x = min_n, y = mean, color = as.factor(tree_depth))) +
-  geom_line() +
-  geom_point() +
-  facet_wrap(~ cost_complexity, scales = "free_y") +
-  theme_minimal() +
-  labs(
-    title = "Accuracy by minimum number of observations per node and tree depth faceted by cost complexity",
-     y = "Accuracy",
-     color = "Tree Depth")
-
-print(min_n_graph_a)
+print(my_results)
 ```
 
-Our final tree using accuracy as key metric has the following parameters :
+Our final tree using the ROC auc as key metric has the following parameters :
 
 ```{r}
 my_best_parameters <- my_tuned_tree %>% select_best(metric = "roc_auc")
@@ -1685,6 +1694,43 @@ kable(my_best_parameters, caption = "Best Parameters for the Decision Tree Model
 my_final_tree_workflow <-  finalize_workflow(tree_workflow ,my_best_parameters)
 
 final_fit <- fit(my_final_tree_workflow, data = learn_merged)
+
+```
+
+Statistics
+
+```{r}
+# Predictions
+final_predictions <- final_fit %>%
+  predict(new_data = learn_merged, type = "prob") %>%  # Predicted probabilities
+  bind_cols(predict(final_fit, new_data = learn_merged, type = "class")) %>%  # Predicted classes
+  bind_cols(learn_merged %>% select(target))  # True target values
+
+#  Metrics
+metrics_result <- final_predictions %>%
+  metrics(truth = target, estimate = .pred_class, .pred_A) %>%
+  bind_rows(
+    final_predictions %>%
+      roc_auc(truth = target, .pred_A) %>%
+      mutate(.metric = "roc_auc"),
+    final_predictions %>%
+      precision(truth = target, estimate = .pred_class) %>%
+      mutate(.metric = "precision"),
+    final_predictions %>%
+      recall(truth = target, estimate = .pred_class) %>%
+      mutate(.metric = "recall"),
+    final_predictions %>%
+      f_meas(truth = target, estimate = .pred_class) %>%
+      mutate(.metric = "f1_score")
+  )
+
+#  Table
+metrics_result %>%
+  kable(
+    caption = "Performance Metrics for the Decision Tree Model",
+    col.names = c("Metric", "Estimator", "Value")
+  )
+
 
 ```
 
@@ -1706,7 +1752,7 @@ autoplot(train_conf_matrix, type = "heatmap") +
   theme_minimal()
 ```
 
-## Random Forest
+### Random Forest
 
 ```{r}
 #random forest model
@@ -1720,7 +1766,7 @@ amazonia <- rand_forest(
 
 # Grid
 my_grid_rf <- expand.grid(
-  mtry = c(1L, 3L, 5L, 7L, 9L, 12L,15L), 
+  mtry = c(1L, 5L, 10L, 15L, 30L, 50L, 100L), 
   min_n = c(2L, 10L, 50L, 100L))
 
 # Workflow
@@ -1737,7 +1783,7 @@ amazonia_tuned <- tune_grid(
   forest_workflow,                  
   resamples = homelander,
   grid = my_grid_rf,                
-  metrics = metric_set(accuracy, roc_auc),
+  metrics = metric_set(accuracy, roc_auc, precision, recall, f_meas),
   control = control_grid(save_workflow = TRUE))
 
 # Best parameters
@@ -1789,6 +1835,7 @@ train_metrics <- train_predictions_rf %>%
 train_metrics %>%
   kable(
     caption = "Key Metrics for the Training Set (Random Forest)")
+
 ```
 
 ## **Gradient Boosting Machines**
