@@ -1,0 +1,54 @@
+---
+title: "Parallel imputation code"
+format: html
+editor: visual
+---
+
+## Quarto
+
+Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+
+## Running Code
+
+When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+
+```{r}
+library(recipes)
+
+combined_imputation_recipe <- recipe(~ ., data = learn) %>%
+  # 1) Impute retirement variables:
+  step_impute_bag(
+    all_of(c(
+      grep("^LAST_", names(learn), value = TRUE),
+      "last_emp_type", "retirement_age", "Retirement_pay"
+    )),
+    impute_with = vars("LAST_JOB_42", "last_emp_type", "retirement_age", 
+                       "JOB_42", "DEP", "Household_type", "Highest_degree"),
+    trees = 5
+  ) %>%
+  # 2) Impute employment variables:
+  step_impute_bag(
+    all_of(c(
+      "company_category", "employee_count", "Job_dep", "job_category", 
+      "Working_hours", "Work_condition", "TYPE_OF_CONTRACT", "remuneration", 
+      "job_desc", "ECO_SECT", "emp_type"
+    )),
+    impute_with = vars("Studying", "JOB_42", "DEP", "Household_type", 
+                       "Highest_degree", "AGE_2019"),
+    trees = 5
+  ) %>%
+  # Then the same steps you'd do normally
+  step_unknown(all_nominal_predictors()) %>%
+  step_dummy(all_nominal_predictors()) %>%
+  step_normalize(all_numeric_predictors())
+
+```
+
+You can add options to executable code like this
+
+```{r}
+#| echo: false
+2 * 2
+```
+
+The `echo: false` option disables the printing of code (only output is displayed).

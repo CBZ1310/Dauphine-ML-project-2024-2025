@@ -38,7 +38,7 @@ library(randomForest)
 library(ranger)
 library(tidymodels)
 library(future)
-
+library(sf)
 ```
 
 ## Introduction
@@ -96,6 +96,8 @@ any(duplicated(learn_sport$PRIMARY_KEY))
 
 
 ```
+
+## Pre-merger formatting
 
 Before merging the learn datasets with one another (and do similarly the same thing for the test ones), we changed the names of the "retired_jobs" datasets by putting the prefix "LAST\_" before several columns. The goal was to avoid confusion with columns with the same names in the "job" dataset that describes active job.
 
@@ -198,6 +200,8 @@ na_sum_table <- bind_rows(learn_na_count, learn_na_percentage, test_na_count, te
 
 print(na_sum_table)
 ```
+
+## Additional data and treatment of string
 
 In addition to the learning and test dataset, we also used to additional dataset :
 
@@ -330,6 +334,57 @@ rm(variable_summary_after_transformation_test)
 rm(variable_summary)
 ```
 
+### Category Simplification for job_desc
+
+```{r}
+code_job_desc_map <- read_csv("Data - source/project-10-files/code/code_job_desc_map.csv", show_col_types = FALSE) %>%
+  select(-N2) 
+```
+
+```{r}
+learn_merged <- learn_merged %>%
+  left_join(code_job_desc_map, by = c("job_desc" = "N3")) %>%
+  mutate(job_desc = N1) %>%
+  select(-N1) %>%
+  left_join(code_job_desc_map, by = c("LAST_job_desc" = "N3")) %>%
+  mutate(LAST_job_desc = N1) %>%
+  select(-N1)
+
+test <- test %>%
+  left_join(code_job_desc_map, by = c("job_desc" = "N3")) %>%
+  mutate(job_desc = N1) %>%
+  select(-N1) %>%
+  left_join(code_job_desc_map, by = c("LAST_job_desc" = "N3")) %>%
+  mutate(LAST_job_desc = N1) %>%
+  select(-N1)
+
+```
+
+```{r}
+job_desc_counts <- table(learn$job_desc)
+job_desc_proportions <- prop.table(job_desc_counts)
+job_desc_df <- as.data.frame(job_desc_proportions)
+
+colnames(job_desc_df) <- c("Job", "Proportion")
+
+
+ggplot(job_desc_df, aes(x = Job, y = Proportion, fill = Job)) +
+  geom_bar(stat = "identity") +
+  scale_y_continuous(labels = scales::percent) +
+  labs(
+    title = "Proportion of Each Job Descriptions",
+    x = "Job Descriptions",
+    y = "Proportion"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+
+
+points_sf <- st_as_sf(learn, coords = c("long", "Lat"), crs = 4326, remove = FALSE)
+```
+
 ## Exploring the dataset
 
 ### Distribution of the target variable
@@ -384,6 +439,94 @@ ggplot(data_percent, aes(x = 1, y = percentage, fill = target)) +
 ```
 
 In other words, there are **`r ratio_A_E`** times more A than E in the dataset.
+
+### Maps by departments
+
+```{r}
+points_sf <- st_as_sf(learn, coords = c("long", "Lat"), crs = 4326, remove = FALSE)
+```
+
+#### Renumeration
+
+```{r}
+# Summarize mean remuneration by DEP
+aggregated_data <- learn |>
+  group_by(DEP) |>
+  summarize(mean_remuneration = mean(as.numeric(remuneration), na.rm = TRUE), .groups = "drop")
+
+# Add Lat and long by merging back with the original dataset
+aggregated_data <- aggregated_data |>
+  left_join(learn |> select(DEP, Lat, long), by = "DEP") |>
+  distinct()
+
+# Plot the map
+ggplot() +
+  geom_point(data = aggregated_data, aes(x = long, y = Lat, color = mean_remuneration), size = 2, alpha = 0.7) +
+  coord_fixed(ratio = 1.2) +
+  scale_color_viridis_c(option = "plasma", na.value = "grey90") +
+  theme_minimal(base_size = 12) +
+  labs(
+    title = "Map of France: Remuneration",
+    subtitle = "Average Remuneration by City",
+    x = "Longitude",
+    y = "Latitude",
+    color = "Remuneration"
+  ) +
+  guides(fill=guide_legend(
+    keyheight = unit(1.15, units = "mm"),
+    keywidth = unit(15, units = "mm"),
+    title.position = 'top',
+    title.hjust = 0.5,
+    label.hjust = 0.5,
+    nrow =1,
+    byrow = T,
+    reverse = F,
+    label.position = "bottom")
+  ) +
+  theme_void() +
+  theme(legend.position = "bottom")
+```
+
+#### Retirement Pay
+
+```{r}
+aggregated_retirement_pay <- learn |>
+  group_by(DEP) |>
+  summarize(mean_retirement_pay = mean(as.numeric(Retirement_pay), na.rm = TRUE), .groups = "drop")
+
+aggregated_retirement_pay <- aggregated_retirement_pay |>
+  left_join(learn |> select(DEP, Lat, long), by = "DEP") |>
+  distinct()
+
+# Plot the map
+ggplot() +
+  geom_point(data = aggregated_retirement_pay, aes(x = long, y = Lat, color = mean_retirement_pay), size = 2, alpha = 0.7) +
+  coord_fixed(ratio = 1.2) +
+  scale_color_viridis_c(option = "plasma", na.value = "grey90") +
+  theme_minimal(base_size = 12) +
+  labs(
+    title = "Map of France: Retirement_pay",
+    subtitle = "Average Retirement pay by Departments",
+    x = "Longitude",
+    y = "Latitude",
+    color = "Remuneration"
+  ) +
+  guides(fill=guide_legend(
+    keyheight = unit(1.15, units = "mm"),
+    keywidth = unit(15, units = "mm"),
+    title.position = 'top',
+    title.hjust = 0.5,
+    label.hjust = 0.5,
+    nrow =1,
+    byrow = T,
+    reverse = F,
+    label.position = "bottom")
+  ) +
+  theme_void() +
+  theme(legend.position = "bottom")
+```
+
+### 
 
 ### Understanding the NA
 
@@ -905,7 +1048,7 @@ na_percentage_per_column
 As a complement, we visualize these results in the graphic below. Important heterogeneity exist between variables regarding missing values. If some variables are well filled, notably the one of the main csv 'learn_dataset", information from over csv are more sparsely filled.
 
 ```{r}
-miss_learn <- gg_miss_var(learn, show_pct = TRUE) +
+miss_learn <- gg_miss_var(learn_merged, show_pct = TRUE) +
   theme_minimal() +
   labs(title = "Percentage of Missing Values by Variable")
 
@@ -1381,8 +1524,8 @@ plan(multisession)
 
 lasagna <- recipe(target ~ ., data = learn_merged) %>%
   update_role(PRIMARY_KEY, new_role = "ID") %>%
-  step_impute_median(all_numeric_predictors()) %>%
-  step_impute_mode(all_nominal_predictors()) 
+  step_impute_mean(all_numeric_predictors()) %>%
+  step_impute_median(all_nominal_predictors()) 
 
 
 prep_it <- prep(lasagna, training = learn_merged)
