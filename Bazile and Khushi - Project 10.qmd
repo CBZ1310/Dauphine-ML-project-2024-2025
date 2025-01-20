@@ -303,6 +303,56 @@ test_merged <- test_merged %>%
   select(-INSEE, -`Nom de la commune`)
 ```
 
+### Category Simplification for job_desc
+
+```{r}
+code_job_desc_map <- read_csv("Data - source/project-10-files/code/code_job_desc_map.csv", show_col_types = FALSE) %>%
+  select(-N2)
+
+
+```
+
+```{r}
+
+learn_merged <- learn_merged %>%
+  left_join(code_job_desc_map, by = c("job_desc" = "N3")) %>%
+  mutate(job_desc = N1) %>%
+  select(-N1) %>%
+  left_join(code_job_desc_map, by = c("LAST_job_desc" = "N3")) %>%
+  mutate(LAST_job_desc = N1) %>%
+  select(-N1)
+
+test_merged <- test_merged %>%
+  left_join(code_job_desc_map, by = c("job_desc" = "N3")) %>%
+  mutate(job_desc = N1) %>%
+  select(-N1) %>%
+  left_join(code_job_desc_map, by = c("LAST_job_desc" = "N3")) %>%
+  mutate(LAST_job_desc = N1) %>%
+  select(-N1)
+```
+
+```{r}
+{r} 
+job_desc_counts <- table(learn$job_desc)
+job_desc_proportions <- prop.table(job_desc_counts)
+job_desc_df <- as.data.frame(job_desc_proportions)
+
+colnames(job_desc_df) <- c("Job", "Proportion")
+
+
+ggplot(job_desc_df, aes(x = Job, y = Proportion, fill = Job)) +
+  geom_bar(stat = "identity") +
+  scale_y_continuous(labels = scales::percent) +
+  labs(
+    title = "Proportion of Each Job Descriptions",
+    x = "Job Descriptions",
+    y = "Proportion"
+  ) +
+  theme_minimal()
+```
+
+### Transformation into factor
+
 We then decided at this step of our work to transform the string values into factor.
 
 ```{r}
@@ -334,56 +384,7 @@ rm(variable_summary_after_transformation_test)
 rm(variable_summary)
 ```
 
-### Category Simplification for job_desc
-
-```{r}
-code_job_desc_map <- read_csv("Data - source/project-10-files/code/code_job_desc_map.csv", show_col_types = FALSE) %>%
-  select(-N2) 
-```
-
-```{r}
-learn_merged <- learn_merged %>%
-  left_join(code_job_desc_map, by = c("job_desc" = "N3")) %>%
-  mutate(job_desc = N1) %>%
-  select(-N1) %>%
-  left_join(code_job_desc_map, by = c("LAST_job_desc" = "N3")) %>%
-  mutate(LAST_job_desc = N1) %>%
-  select(-N1)
-
-test <- test %>%
-  left_join(code_job_desc_map, by = c("job_desc" = "N3")) %>%
-  mutate(job_desc = N1) %>%
-  select(-N1) %>%
-  left_join(code_job_desc_map, by = c("LAST_job_desc" = "N3")) %>%
-  mutate(LAST_job_desc = N1) %>%
-  select(-N1)
-
-```
-
-```{r}
-job_desc_counts <- table(learn$job_desc)
-job_desc_proportions <- prop.table(job_desc_counts)
-job_desc_df <- as.data.frame(job_desc_proportions)
-
-colnames(job_desc_df) <- c("Job", "Proportion")
-
-
-ggplot(job_desc_df, aes(x = Job, y = Proportion, fill = Job)) +
-  geom_bar(stat = "identity") +
-  scale_y_continuous(labels = scales::percent) +
-  labs(
-    title = "Proportion of Each Job Descriptions",
-    x = "Job Descriptions",
-    y = "Proportion"
-  ) +
-  theme_minimal()
-```
-
-```{r}
-
-
-points_sf <- st_as_sf(learn, coords = c("long", "Lat"), crs = 4326, remove = FALSE)
-```
+### 
 
 ## Exploring the dataset
 
