@@ -5,7 +5,7 @@ format: pdf
 editor: visual
 ---
 
-```{r, warning=FALSE, message=FALSE}
+```{r libraries, warning=FALSE, message=FALSE}
 here::i_am("Dauphine-ML-project-2024-2025.Rproj")
 #Libraries
 library(here)
@@ -45,7 +45,7 @@ library(sf)
 
 ## Cleaning phase
 
-```{r}
+```{r first_import}
 #Learning data set
 
 ## Import data
@@ -258,7 +258,7 @@ rm(demo_learn_na_count)
 
 We started by looking at an overview of the dataset content. It allow us to see whether some variables were mischaracterized.
 
-```{r}
+```{r table_on_the_type_of_data_in_the_dataset}
 # Creation of table with the type, number of variable and their name
 variable_summary <- learn_merged %>%
   summarise(across(everything(), ~ class(.)[1])) %>%  
@@ -270,14 +270,14 @@ variable_summary <- learn_merged %>%
 
 variable_summary %>%
   kable(
-    caption = "Summary of Variable Types in Dataset",
+    caption = "Variable Types in the dataset",
     align = "l")
 
 ```
 
 The table below list the different string variable and the number of unique value each of them has.
 
-```{r}
+```{r list_of_string_var_and_their_unique_values}
 # Identifying column considered as string
 string_columns_summary <- learn_merged %>%
   select(where(is.character)) %>%
@@ -288,14 +288,22 @@ string_columns_summary <- learn_merged %>%
 string_columns_summary %>%
   kable(
     col.names = c("Variable", "Unique values"),
-    caption = "Summary of String Variables and Their Unique Values",
+    caption = "Summary of string variables and their unique values",
     align = "l"
   )
 ```
 
 The variable INSEE and "Nom de la commune" with the different code INSEE and name of towns has a too large number of potential variable. We therefore decided to drop it.
 
-```{r}
+```{r selection_of_data_on_town}
+#Data keep for the maps and addition of X and Y coordinates
+learn_map <- learn_merged 
+city_loc <- read_csv("Data - source/project-10-files/city_loc.csv", show_col_types = FALSE)
+
+learn_map <- learn_map %>% 
+  left_join(city_loc, by = "INSEE") 
+
+#Suppression of unecessary data
 learn_merged <- learn_merged %>%
   select(-INSEE, -`Nom de la commune`)
 
@@ -305,14 +313,14 @@ test_merged <- test_merged %>%
 
 ### Category Simplification for job_desc
 
-```{r}
+```{r import_of_dictionnary_on_job_decs}
 code_job_desc_map <- read_csv("Data - source/project-10-files/code/code_job_desc_map.csv", show_col_types = FALSE) %>%
   select(-N2)
 
 
 ```
 
-```{r}
+```{r simplification_of_job_desc}
 
 learn_merged <- learn_merged %>%
   left_join(code_job_desc_map, by = c("job_desc" = "N3")) %>%
@@ -331,7 +339,7 @@ test_merged <- test_merged %>%
   select(-N1)
 ```
 
-```{r}
+```{r statitics_on_job_desc}
 job_desc_counts <- table(learn_merged$job_desc)
 job_desc_proportions <- prop.table(job_desc_counts)
 job_desc_df <- as.data.frame(job_desc_proportions)
@@ -354,7 +362,7 @@ ggplot(job_desc_df, aes(x = Job, y = Proportion, fill = Job)) +
 
 We then decided at this step of our work to transform the string values into factor.
 
-```{r}
+```{r transformation_of_string_in_factor}
 learn_merged <- learn_merged %>%
   mutate(across(where(is.character), as.factor))
 
@@ -389,7 +397,7 @@ rm(variable_summary)
 
 The target variable as a higher proportion of value equal to A than value equal to E in the learning set. The graphic below give us the number of rows by category of the variable "target".
 
-```{r}
+```{r Distribution_of_the_target_variable}
 
 #Graphics 
 
@@ -418,7 +426,7 @@ ratio_A_E <- round(n_A / n_E, 1)
 
 The target variable has a higher proportion of the value "A" compared to "E" in the dataset. **`r n_A`** individuals having "A" as target value represents **`r round(percent_A, 2)`%** of the total rows while "E" individuals represents **`r round(percent_E, 2)`%** of the observations (**`r n_E`** rows). It is to note that because this imbalance, we will use a stratification method during the resampling. However, the imbalance is not severe enough to require additional techniques such as up-sampling or down-sampling.
 
-```{r}
+```{r distribution_of_the_target_variable_in_percent}
 ## Percent (%)
 data_percent <- learn_merged %>%
   count(target) %>%
@@ -440,21 +448,22 @@ In other words, there are **`r ratio_A_E`** times more A than E in the dataset.
 
 ### Maps by departments
 
-```{r}
-points_sf <- st_as_sf(learn_merged, coords = c("long", "Lat"), crs = 4326, remove = FALSE)
+```{r map_dep_part_preparation}
+
+points_sf <- st_as_sf(learn_map, coords = c("long", "Lat"), crs = 4326, remove = FALSE)
 ```
 
 #### Renumeration
 
-```{r}
+```{r map_dep_on_renumeration}
 # Summarize mean remuneration by DEP
-aggregated_data <- learn_merged |>
+aggregated_data <- learn_map |>
   group_by(DEP) |>
   summarize(mean_remuneration = mean(as.numeric(remuneration), na.rm = TRUE), .groups = "drop")
 
 # Add Lat and long by merging back with the original dataset
 aggregated_data <- aggregated_data |>
-  left_join(learn_merged |> select(DEP, Lat, long), by = "DEP") |>
+  left_join(learn_map |> select(DEP, Lat, long), by = "DEP") |>
   distinct()
 
 # Plot the map
@@ -487,13 +496,13 @@ ggplot() +
 
 #### Retirement Pay
 
-```{r}
-aggregated_retirement_pay <- learn_merged |>
+```{r map_dep_on_retirement_pay}
+aggregated_retirement_pay <- learn_map |>
   group_by(DEP) |>
   summarize(mean_retirement_pay = mean(as.numeric(Retirement_pay), na.rm = TRUE), .groups = "drop")
 
 aggregated_retirement_pay <- aggregated_retirement_pay |>
-  left_join(learn_merged |> select(DEP, Lat, long), by = "DEP") |>
+  left_join(learn_map |> select(DEP, Lat, long), by = "DEP") |>
   distinct()
 
 # Plot the map
@@ -1033,7 +1042,7 @@ learn_merged_uncoded_clean <- learn_merged_uncoded %>%
 
 The table below describe the percentage of missing value by variable in the learning set. The value of the main dataset has a 100% completion rate as we saw ealrier.
 
-```{r}
+```{r descriptive_stats_on_na}
 na_percentage_per_column <- learn_merged %>%
   summarise(across(everything(), ~ sum(is.na(.)) / n() * 100)) %>%
   pivot_longer(everything(), names_to = "column_name", values_to = "na_percentage") %>%
@@ -1043,7 +1052,7 @@ na_percentage_per_column
 
 As a complement, we visualize these results in the graphic below. Important heterogeneity exist between variables regarding missing values. If some variables are well filled, notably the one of the main csv 'learn_dataset", information from over csv are more sparsely filled.
 
-```{r}
+```{r graph_on_na}
 miss_learn <- gg_miss_var(learn_merged, show_pct = TRUE) +
   theme_minimal() +
   labs(title = "Percentage of Missing Values by Variable")
@@ -1051,9 +1060,9 @@ miss_learn <- gg_miss_var(learn_merged, show_pct = TRUE) +
 miss_learn
 ```
 
-Using the library "DateExplorer", we look at the percentage of missing values looking only variable with at least one missing value.
+Using the library "DateExplorer", we create an alternative representation with the percentage of missing values looking only variable with at least one missing value.
 
-```{r}
+```{r graph_on_na_with_only_column_with_na}
 
 learn_merged_with_Na <- learn_merged[, colSums(is.na(learn_merged)) > 1]
 
@@ -1518,6 +1527,10 @@ NB : The imputation and machine learning model excluding primary key of the work
 ```{r}
 plan(multisession)
 
+learn_merged <- learn_merged %>%
+  mutate(Studying = as.factor(Studying))
+
+# General recipe
 lasagna <- recipe(target ~ ., data = learn_merged) %>%
   update_role(PRIMARY_KEY, new_role = "ID") %>%
   step_impute_mean(all_numeric_predictors()) %>%
@@ -1533,6 +1546,8 @@ learn_imputed <- bake(prep_it, new_data = learn_merged)
 after_imputation_summary <- learn_imputed %>%
   summarise(across(all_of(columns_to_impute), ~ round(sum(is.na(.)) / n() * 100, 2)))
 after_imputation_summary
+
+
 ```
 
 ```         
@@ -1540,38 +1555,69 @@ after_imputation_summary
 
 # Machine learning models
 
-One hot encoding
-
-```{r}
-# Pre-processing : Hot encoding
-```
-
 ## Linear model with a logistic regression
 
 ```{r}
-logit_m <- logistic_reg() %>%
-  set_engine("glm") %>%
+# Transform 'Studying' into a factor
+learn_merged <- learn_merged %>%
+  mutate(Studying = as.factor(Studying))
+
+# Lasagna with salmon : A special recipe for logit
+lasagna_for_logit <- recipe(target ~ ., data = learn_merged) %>%
+  update_role(PRIMARY_KEY, new_role = "ID") %>%
+  step_impute_mean(all_numeric_predictors()) %>%
+  step_impute_mode(all_nominal_predictors()) %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_normalize(all_numeric_predictors()) %>%
+  step_zv(all_predictors()) 
+
+
+#  Creation of the logit Model
+logit_m <- logistic_reg(penalty = tune(), mixture = tune()) %>%
+  set_engine("glmnet") %>%
   set_mode("classification")
 
-linear_workflow <- workflow() %>%
-  add_recipe(lasagna) %>%
+# Workflow
+logit_workflow <- workflow() %>%
+  add_recipe(lasagna_for_logit) %>%
   add_model(logit_m)
 
+# Cross-Validation
 compound_v <- vfold_cv(learn_merged, v = 5, strata = target)
 
-logit_result <- fit_resamples(
-  linear_workflow,
+# Hyperparameter Grid
+logit_grid <- grid_regular(
+  penalty(range = c(0.001, 0.1)),    # Penalty values
+  mixture(range = c(0, 1)),          # Elastic net mixing values
+  levels = 10                        # Number of grid points
+)
+
+# Tuning
+set.seed(12)
+logit_result <- tune_grid(
+  logit_workflow,
   resamples = compound_v,
-  metrics = metric_set(accuracy, roc_auc))
+  grid = logit_grid,
+  metrics = metric_set(accuracy, roc_auc)
+)
 
-collect_metrics(res_logreg)
+# Results
+collect_metrics(logit_result)
 
-final_logreg_fit <- wf_logreg %>% fit(data = learn_merged)
+# Best Parameters
+best_params <- select_best(logit_result, metric = "roc_auc")
+
+# Final Workflow with Best Parameters
+final_logit_workflow <- finalize_workflow(logit_workflow, best_params)
+
+# Fit the Final Logistic Regression Model
+final_logit_model <- fit(final_logit_workflow, data = learn_merged)
 ```
 
 ## Decision Tree
 
 ```{r}
+
 ##  Creation of the tree
 
 my_tree <- decision_tree(
@@ -1631,25 +1677,33 @@ print(min_n_graph_a)
 Our final tree using accuracy as key metric has the following parameters :
 
 ```{r}
-my_best_parameters <- my_tuned_tree %>%    select_best(metric = "accuracy")  kable(my_best_parameters, caption = "Best Parameters for the Decision Tree Model")
+my_best_parameters <- my_tuned_tree %>% select_best(metric = "roc_auc")
+kable(my_best_parameters, caption = "Best Parameters for the Decision Tree Model")
 ```
 
 ```{r}
 my_final_tree_workflow <-  finalize_workflow(tree_workflow ,my_best_parameters)
 
-final_fit <- my_final_tree_workflow %>% last_fit(model_formula, data = learn_merged)
+final_fit <- fit(my_final_tree_workflow, data = learn_merged)
+
 ```
 
 Confusion Matrices
 
 ```{r}
-train_predictions %>% my_final_tree_workflow %>%
+train_predictions <- final_fit %>%
   predict(new_data = learn_merged) %>%
-  bind_cols(train_data %>% select(target))
+  bind_cols(learn_merged %>% select(target))
+
+
 
 # Compute the confusion matrix for the training set
 train_conf_matrix <- train_predictions %>%
   conf_mat(truth = target, estimate = .pred_class)
+
+autoplot(train_conf_matrix, type = "heatmap") +
+  labs(title = "Confusion Matrix for Training Data") +
+  theme_minimal()
 ```
 
 ## Random Forest
@@ -1688,7 +1742,7 @@ amazonia_tuned <- tune_grid(
 
 # Best parameters
 best_rf_params <- amazonia_tuned %>%
-  select_best(metric = "accuracy")
+  select_best(metric = "roc_auc")
 ```
 
 characteristics of the random forest
